@@ -1,0 +1,3329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Aegis · Internal Audit & Risk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #fafbfc;
+    --surface: #ffffff;
+    --surface-2: #f5f7fa;
+    --border: #e5e8ec;
+    --border-strong: #d4d8de;
+    --text: #1a1f2e;
+    --text-2: #4a5568;
+    --text-3: #717a89;
+    --text-4: #9ba3af;
+    --accent: #4338ca;
+    --accent-2: #6366f1;
+    --accent-soft: #eef2ff;
+    --accent-strong: #3730a3;
+
+    --rag-critical: #b91c1c;
+    --rag-critical-soft: #fef2f2;
+    --rag-high: #dc2626;
+    --rag-high-soft: #fef2f2;
+    --rag-medium: #ea580c;
+    --rag-medium-soft: #fff7ed;
+    --rag-low: #15803d;
+    --rag-low-soft: #f0fdf4;
+
+    --hover-critical: #fee2e2;
+    --hover-high: #fee2e2;
+    --hover-medium: #ffedd5;
+    --hover-low: #dcfce7;
+
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+    --shadow-md: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+    --shadow-lg: 0 4px 16px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.04);
+    --radius: 10px;
+    --radius-sm: 6px;
+    --radius-lg: 14px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* ============================ LAYOUT ============================ */
+  .app { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 220px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    padding: 4px 8px 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  .brand-mark {
+    width: 28px; height: 28px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    border-radius: 6px;
+    position: relative;
+  }
+  .brand-mark::after {
+    content: ''; position: absolute; inset: 6px;
+    background: var(--surface);
+    clip-path: polygon(50% 0, 100% 25%, 100% 70%, 50% 100%, 0 70%, 0 25%);
+  }
+  .brand-name { font-weight: 600; font-size: 16px; letter-spacing: -0.01em; }
+  .brand-tag { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px;
+    border-radius: var(--radius-sm);
+    color: var(--text-2);
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 120ms;
+    user-select: none;
+  }
+  .nav-item:hover { background: var(--surface-2); color: var(--text); }
+  .nav-item.active { background: var(--accent-soft); color: var(--accent); }
+  .nav-item .ico { width: 16px; height: 16px; opacity: 0.85; }
+
+  .sidebar-footer {
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .role-pill {
+    font-size: 11px; color: var(--text-3);
+    padding: 8px 12px; border-radius: var(--radius-sm);
+    background: var(--surface-2);
+  }
+  .role-pill select {
+    width: 100%; border: none; background: transparent;
+    font-family: inherit; font-size: 12px; color: var(--text);
+    margin-top: 2px; cursor: pointer; padding: 0;
+  }
+
+  .main { flex: 1; min-width: 0; overflow-x: auto; }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 40px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .topbar-left { display: flex; flex-direction: column; gap: 2px; }
+  .topbar-date { font-size: 12px; color: var(--text-3); letter-spacing: 0.02em; text-transform: uppercase; }
+  .topbar-status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
+  .pulse-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #16a34a;
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.5);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.5); }
+    70% { box-shadow: 0 0 0 8px rgba(22, 163, 74, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+  }
+  .topbar-right { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text-3); }
+  .avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: white; font-weight: 600; font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .page { padding: 32px 40px 80px; max-width: 1180px; }
+  .page-wide { padding: 32px 40px 80px; }
+
+  /* ============================ HOME ============================ */
+  .home-header {
+    margin-bottom: 24px;
+  }
+  .home-title {
+    font-size: 26px; font-weight: 600; letter-spacing: -0.02em;
+    margin: 0 0 4px;
+  }
+  .home-subtitle { color: var(--text-3); font-size: 14px; }
+
+  .briefing-tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+  }
+  .tile-header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .tile-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+  .tile-meta { font-size: 12px; color: var(--text-3); }
+
+  .notif {
+    display: grid;
+    grid-template-columns: 4px 1fr auto;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 120ms;
+    gap: 16px;
+    align-items: center;
+  }
+  .notif:last-child { border-bottom: none; }
+  .notif.critical:hover { background: var(--hover-critical); }
+  .notif.high:hover { background: var(--hover-high); }
+  .notif.medium:hover { background: var(--hover-medium); }
+  .notif.low:hover { background: var(--hover-low); }
+  .notif-rail { width: 4px; border-radius: 2px; align-self: stretch; }
+  .notif-rail.critical { background: var(--rag-critical); }
+  .notif-rail.high { background: var(--rag-high); }
+  .notif-rail.medium { background: var(--rag-medium); }
+  .notif-rail.low { background: var(--rag-low); }
+
+  .notif-body { min-width: 0; }
+  .notif-meta {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    font-size: 12px; margin-bottom: 8px;
+  }
+  .sev-tag {
+    font-weight: 600; font-size: 11px; letter-spacing: 0.04em;
+    padding: 3px 8px; border-radius: 4px; text-transform: uppercase;
+  }
+  .sev-tag.critical { background: var(--rag-critical-soft); color: var(--rag-critical); }
+  .sev-tag.high { background: var(--rag-high-soft); color: var(--rag-high); }
+  .sev-tag.medium { background: var(--rag-medium-soft); color: var(--rag-medium); }
+  .sev-tag.low { background: var(--rag-low-soft); color: var(--rag-low); }
+
+  .notif-source { color: var(--text-2); font-weight: 500; }
+  .verified {
+    display: inline-flex; align-items: center; gap: 4px;
+    color: var(--text-3); font-size: 11px;
+  }
+  .verified::before {
+    content: '✓'; color: #16a34a; font-weight: 700;
+  }
+  .notif-time { color: var(--text-3); margin-left: auto; }
+
+  .notif-title {
+    font-size: 15px; font-weight: 600; margin: 0 0 6px;
+    letter-spacing: -0.01em;
+  }
+  .notif-what {
+    color: var(--text-2);
+    margin: 0 0 4px;
+    font-size: 13px;
+  }
+  .notif-why {
+    color: var(--text-2);
+    margin: 0 0 10px;
+    font-size: 13px;
+  }
+  .notif-why strong { color: var(--text); font-weight: 600; }
+
+  .agent-done-inline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+  }
+  .agent-done-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-right: 4px;
+  }
+  .done-chip {
+    background: var(--surface-2);
+    color: var(--text-2);
+    padding: 3px 9px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+    border: 1px solid var(--border);
+  }
+  .done-chip::before { content: '✓ '; color: #16a34a; font-weight: 700; }
+
+  .notif-action {
+    align-self: center;
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit; font-size: 13px; font-weight: 500;
+    cursor: pointer;
+    transition: all 120ms;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--text-3); background: var(--surface-2); }
+  .btn-primary {
+    background: var(--accent); color: white; border-color: var(--accent);
+  }
+  .btn-primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+  .btn-lg { padding: 11px 20px; font-size: 14px; }
+  .btn-link {
+    background: none; border: none; color: var(--accent);
+    cursor: pointer; padding: 0; font-family: inherit; font-size: 13px;
+    font-weight: 500; text-decoration: none;
+  }
+  .btn-link:hover { text-decoration: underline; }
+
+  .home-counts {
+    margin-top: 20px;
+    padding: 14px 24px;
+    color: var(--text-3);
+    font-size: 13px;
+    text-align: center;
+  }
+  .home-counts a {
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: rgba(67, 56, 202, 0.3);
+  }
+
+  /* ============================ SCREEN 2 ============================ */
+  .breadcrumb {
+    display: flex; align-items: center; gap: 8px;
+    color: var(--text-3); font-size: 13px;
+    margin-bottom: 18px;
+  }
+  .breadcrumb a { color: var(--text-3); cursor: pointer; }
+  .breadcrumb a:hover { color: var(--text); }
+
+  .event-header {
+    display: flex; align-items: start; gap: 16px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 32px;
+  }
+  .event-header-left { flex: 1; }
+  .event-meta {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    font-size: 13px; color: var(--text-3); margin-bottom: 10px;
+  }
+  .event-title {
+    font-size: 28px; font-weight: 600; letter-spacing: -0.02em;
+    margin: 0; line-height: 1.25;
+  }
+
+  .reading {
+    max-width: 760px;
+  }
+  .reading section {
+    margin-bottom: 28px;
+  }
+  .reading h2 {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-3);
+    margin: 0 0 12px;
+  }
+  .reading p {
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--text);
+    margin: 0 0 8px;
+  }
+  .reading p.muted { color: var(--text-2); }
+
+  .stats-strip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin: 18px 0 12px;
+    overflow: hidden;
+  }
+  .stat {
+    background: var(--surface);
+    padding: 18px 22px;
+  }
+  .stat-label {
+    font-size: 11px; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 6px;
+  }
+  .stat-value {
+    font-size: 26px; font-weight: 600; letter-spacing: -0.02em;
+    color: var(--text);
+  }
+  .stat-sub {
+    font-size: 12px; color: var(--text-3); margin-top: 4px;
+  }
+  .stat-flag {
+    display: inline-block; font-size: 10px;
+    padding: 2px 6px; border-radius: 3px; margin-top: 8px;
+    background: var(--rag-medium-soft); color: var(--rag-medium);
+    font-weight: 500; letter-spacing: 0.02em;
+  }
+
+  .control-list { list-style: none; padding: 0; margin: 0; }
+  .control-list li {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+  .control-list li:last-child { border-bottom: none; }
+  .control-list .control-name { font-weight: 500; color: var(--text); }
+  .control-list .control-desc { color: var(--text-2); }
+
+  .entity-list { list-style: none; padding: 0; margin: 0; }
+  .entity-list li {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .entity-list li:last-child { border-bottom: none; }
+  .entity-code {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    background: var(--surface-2); padding: 4px 8px;
+    border-radius: 4px; color: var(--text-2);
+    min-width: 80px; text-align: center;
+  }
+  .entity-name { font-weight: 500; }
+  .entity-rationale { color: var(--text-3); font-size: 13px; margin-left: auto; }
+
+  .action-bar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 24px 0;
+    border-top: 1px solid var(--border);
+    margin-top: 32px;
+  }
+
+  .sources-footer {
+    margin-top: 24px;
+    padding: 16px 0;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-3);
+  }
+  .sources-footer-label {
+    font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 8px;
+  }
+  .sources-footer ul {
+    list-style: none; padding: 0; margin: 0;
+    display: flex; flex-wrap: wrap; gap: 6px 18px;
+  }
+  .sources-footer li::before {
+    content: '✓'; color: #16a34a; margin-right: 6px; font-weight: 700;
+  }
+
+  /* ============================ MOBILE / LOCK SCREEN ============================ */
+  .mobile-stage {
+    position: fixed; inset: 0;
+    background: radial-gradient(1200px 600px at 30% 10%, #1f2937 0%, #0b1220 60%, #050810 100%);
+    display: flex; align-items: center; justify-content: center;
+    gap: 56px;
+    padding: 40px;
+    overflow: auto;
+    z-index: 50;
+  }
+  .phone {
+    position: relative;
+    width: 360px; height: 740px;
+    background: #0a0d12;
+    border-radius: 48px;
+    padding: 14px;
+    box-shadow:
+      0 0 0 2px #1a1f2e,
+      0 30px 90px rgba(0,0,0,0.6),
+      0 8px 24px rgba(0,0,0,0.4);
+    flex-shrink: 0;
+  }
+  .phone-notch {
+    position: absolute;
+    top: 22px; left: 50%; transform: translateX(-50%);
+    width: 110px; height: 30px;
+    background: #050810;
+    border-radius: 16px;
+    z-index: 3;
+  }
+  .phone-screen {
+    width: 100%; height: 100%;
+    border-radius: 36px;
+    background:
+      linear-gradient(180deg, rgba(15,23,42,0.65) 0%, rgba(15,23,42,0.85) 100%),
+      radial-gradient(circle at 30% 20%, #4338ca 0%, #1e1b4b 50%, #0b1220 100%);
+    color: #fff;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    position: relative;
+  }
+  .phone-statusbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 28px 8px;
+    font-size: 13px; font-weight: 600;
+    color: rgba(255,255,255,0.95);
+  }
+  .phone-status-icons { display: flex; gap: 6px; align-items: center; }
+  .phone-bars, .phone-wifi, .phone-battery {
+    display: inline-block; width: 16px; height: 12px;
+    background: rgba(255,255,255,0.85);
+    -webkit-mask-position: center; mask-position: center;
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+    -webkit-mask-size: contain; mask-size: contain;
+  }
+  .phone-bars { -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="0.5"/><rect x="5" y="5" width="3" height="7" rx="0.5"/><rect x="10" y="2" width="3" height="10" rx="0.5"/><rect x="15" y="0" width="3" height="12" rx="0.5"/></svg>'); mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="0.5"/><rect x="5" y="5" width="3" height="7" rx="0.5"/><rect x="10" y="2" width="3" height="10" rx="0.5"/><rect x="15" y="0" width="3" height="12" rx="0.5"/></svg>'); }
+  .phone-wifi { -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 12"><path d="M8 11 L10 9 A3 3 0 0 0 6 9 Z M8 6 A6 6 0 0 1 13 9 L11 11 A3 3 0 0 0 5 11 L3 9 A6 6 0 0 1 8 6 Z M8 1 A11 11 0 0 1 16 5 L14 7 A8 8 0 0 0 2 7 L0 5 A11 11 0 0 1 8 1 Z" fill="black"/></svg>'); mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 12"><path d="M8 11 L10 9 A3 3 0 0 0 6 9 Z M8 6 A6 6 0 0 1 13 9 L11 11 A3 3 0 0 0 5 11 L3 9 A6 6 0 0 1 8 6 Z M8 1 A11 11 0 0 1 16 5 L14 7 A8 8 0 0 0 2 7 L0 5 A11 11 0 0 1 8 1 Z" fill="black"/></svg>'); }
+  .phone-battery {
+    width: 24px; height: 12px;
+    background: transparent;
+    border: 1.2px solid rgba(255,255,255,0.85);
+    border-radius: 3px;
+    position: relative;
+    -webkit-mask-image: none; mask-image: none;
+  }
+  .phone-battery::before {
+    content: ''; position: absolute; inset: 1.5px;
+    width: 80%; background: rgba(255,255,255,0.9); border-radius: 1.5px;
+  }
+  .phone-battery::after {
+    content: ''; position: absolute; right: -3px; top: 3px;
+    width: 2px; height: 4px; background: rgba(255,255,255,0.85); border-radius: 0 1px 1px 0;
+  }
+
+  .phone-lockinfo {
+    text-align: center;
+    padding: 20px 16px 18px;
+    color: rgba(255,255,255,0.95);
+  }
+  .phone-date { font-size: 14px; font-weight: 500; opacity: 0.85; }
+  .phone-bigtime { font-size: 64px; font-weight: 200; letter-spacing: -0.02em; line-height: 1; margin-top: 4px; font-feature-settings: 'tnum'; }
+
+  .phone-notif-stack {
+    flex: 1; min-height: 0;
+    overflow-y: auto;
+    padding: 10px 12px 24px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .phone-notif-stack::-webkit-scrollbar { width: 0; }
+  .phone-notif-group-label {
+    font-size: 11px;
+    color: rgba(255,255,255,0.6);
+    padding: 0 6px 4px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .phone-notif {
+    background: rgba(255,255,255,0.14);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 18px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    color: #fff;
+    animation: notifSlideIn 500ms ease-out backwards;
+  }
+  .phone-notif:nth-child(2) { animation-delay: 80ms; }
+  .phone-notif:nth-child(3) { animation-delay: 160ms; }
+  .phone-notif:nth-child(4) { animation-delay: 240ms; }
+  @keyframes notifSlideIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .phone-notif.lead {
+    background: rgba(255,255,255,0.22);
+    border: 1px solid rgba(255,255,255,0.18);
+  }
+  .phone-notif-head {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.85);
+    margin-bottom: 6px;
+  }
+  .phone-app-mark {
+    width: 14px; height: 14px;
+    border-radius: 4px;
+    background: linear-gradient(135deg, #6366f1, #4338ca);
+    color: #fff; font-size: 9px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .phone-app-name { font-weight: 600; letter-spacing: 0.04em; }
+  .phone-sev {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
+    padding: 2px 6px; border-radius: 4px;
+    margin-left: 4px;
+  }
+  .phone-sev.sev-critical { background: rgba(220,38,38,0.9); color: #fff; }
+  .phone-sev.sev-high { background: rgba(220,38,38,0.7); color: #fff; }
+  .phone-sev.sev-medium { background: rgba(234,88,12,0.85); color: #fff; }
+  .phone-sev.sev-low { background: rgba(21,128,61,0.85); color: #fff; }
+  .phone-notif-time { margin-left: auto; opacity: 0.7; font-size: 10px; }
+  .phone-notif-title {
+    font-size: 14px; font-weight: 600;
+    line-height: 1.3;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+  .phone-notif-sub {
+    font-size: 12px;
+    color: rgba(255,255,255,0.78);
+    line-height: 1.4;
+  }
+  .phone-notif-impact {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255,255,255,0.12);
+    font-size: 11px;
+    color: rgba(255,255,255,0.85);
+    line-height: 1.45;
+  }
+  .phone-notif-impact strong { color: #fff; }
+  .phone-actions {
+    display: flex; flex-direction: column; gap: 8px;
+    margin-top: 12px;
+  }
+  .phone-btn {
+    width: 100%;
+    border: none; border-radius: 12px;
+    padding: 12px 14px;
+    font-family: inherit;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer;
+    transition: transform 120ms, background 120ms;
+  }
+  .phone-btn.primary {
+    background: #fff;
+    color: #1a1f2e;
+  }
+  .phone-btn.primary:hover { transform: translateY(-1px); background: rgba(255,255,255,0.92); }
+  .phone-btn.secondary {
+    background: rgba(255,255,255,0.18);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.25);
+  }
+  .phone-btn.secondary:hover { transform: translateY(-1px); background: rgba(255,255,255,0.26); }
+
+  .phone-bottom-hint {
+    padding: 10px 0 12px;
+    display: flex; justify-content: center;
+  }
+  .phone-home-indicator {
+    width: 130px; height: 5px;
+    background: rgba(255,255,255,0.6);
+    border-radius: 3px;
+  }
+
+  .mobile-side-note {
+    color: rgba(255,255,255,0.85);
+    max-width: 320px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .mobile-side-mark {
+    display: flex; align-items: center; gap: 10px;
+    color: rgba(255,255,255,0.85);
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+  .mobile-side-mark .brand-mark { width: 22px; height: 22px; }
+  .mobile-side-mark .brand-mark::after { background: #0b1220; }
+  .mobile-side-title {
+    font-size: 22px;
+    font-weight: 600;
+    color: #fff;
+    line-height: 1.3;
+    margin-bottom: 12px;
+    letter-spacing: -0.01em;
+  }
+  .mobile-side-note p {
+    color: rgba(255,255,255,0.7);
+    margin: 0 0 16px;
+  }
+  .mobile-side-note strong { color: rgba(255,255,255,0.95); font-weight: 600; }
+  .mobile-side-meta {
+    font-size: 11px;
+    color: rgba(255,255,255,0.45);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  @media (max-width: 900px) {
+    .mobile-stage { flex-direction: column; gap: 28px; padding: 24px 16px; }
+    .mobile-side-note { max-width: 360px; text-align: center; }
+    .mobile-side-mark { justify-content: center; }
+  }
+
+  /* ============================ INTERSTITIAL ============================ */
+  .interstitial {
+    position: fixed; inset: 0;
+    background: #0b1220;
+    z-index: 100;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    color: white;
+    overflow: hidden;
+  }
+  .interstitial-mark {
+    position: absolute; top: 28px; left: 32px;
+    display: flex; align-items: center; gap: 10px;
+    opacity: 0.3;
+    color: white;
+    font-weight: 600;
+  }
+  .interstitial-mark .brand-mark { width: 22px; height: 22px; }
+  .interstitial-mark .brand-mark::after { background: #0b1220; }
+
+  .interstitial-skip {
+    position: absolute; bottom: 24px; right: 32px;
+    color: rgba(255,255,255,0.4);
+    background: none; border: none;
+    font-family: inherit; font-size: 12px;
+    cursor: pointer;
+  }
+  .interstitial-skip:hover { color: rgba(255,255,255,0.8); }
+
+  .work-log {
+    width: 720px; max-width: 90vw;
+    height: 360px;
+    overflow: hidden;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; line-height: 1.9;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.4) 15%, rgba(0,0,0,1) 35%, rgba(0,0,0,1) 100%);
+  }
+  .log-line {
+    color: rgba(255,255,255,0.9);
+    opacity: 0;
+    animation: appear 400ms forwards;
+  }
+  .log-line.recent { color: rgba(255,255,255,0.85); }
+  .log-line.older { color: rgba(255,255,255,0.55); }
+  .log-line.oldest { color: rgba(255,255,255,0.35); }
+  .log-line.active {
+    color: rgba(255,255,255,1);
+    animation: appear 400ms forwards, linePulse 1.6s infinite;
+  }
+  .log-ts { color: rgba(99, 102, 241, 0.85); margin-right: 12px; }
+  @keyframes appear {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes linePulse {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+  }
+
+  .row-counter {
+    margin-top: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: rgba(255,255,255,0.5);
+    text-align: center;
+    height: 18px;
+  }
+  .row-counter strong { color: rgba(99, 102, 241, 1); font-weight: 500; }
+
+  .progress-bar {
+    position: absolute; bottom: 0; left: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent-2), #22d3ee);
+    width: 0;
+    transition: width 200ms linear;
+  }
+
+  .ready-modal {
+    position: absolute;
+    background: var(--surface);
+    color: var(--text);
+    padding: 32px 36px;
+    border-radius: var(--radius-lg);
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    animation: zoomIn 280ms ease-out;
+    width: 380px;
+  }
+  @keyframes zoomIn {
+    from { opacity: 0; transform: scale(0.92); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .ready-modal-check {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: #16a34a; color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; margin: 0 auto 14px;
+  }
+  .ready-modal h3 { margin: 0 0 6px; font-size: 18px; }
+  .ready-modal p { color: var(--text-2); margin: 0 0 20px; font-size: 14px; }
+
+  /* ============================ SCREEN 3 ============================ */
+  .tile-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    margin-top: 24px;
+  }
+  .calib-tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+  .calib-tile-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .calib-tile-title {
+    font-size: 14px; font-weight: 600; letter-spacing: -0.01em;
+  }
+  .calib-tile-suggested {
+    font-size: 11px; color: var(--text-3);
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 2px 8px; border-radius: 10px;
+    font-weight: 500;
+  }
+  .calib-tile-body { padding: 8px 0; }
+
+  .calib-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 12px;
+    padding: 9px 18px;
+    align-items: start;
+  }
+  .calib-row:hover { background: var(--surface-2); }
+  .calib-row .check {
+    width: 16px; height: 16px;
+    border: 1.5px solid var(--border-strong);
+    border-radius: 4px;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-top: 2px;
+    background: white;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 120ms;
+  }
+  .calib-row .check.checked {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .calib-row .check.checked::after {
+    content: '✓'; color: white; font-size: 11px; font-weight: 700;
+  }
+  .calib-row-main { font-size: 13px; }
+  .calib-row-sub { font-size: 12px; color: var(--text-3); margin-top: 1px; }
+  .calib-row-aside { color: var(--text-3); font-size: 11px; margin-top: 2px; }
+
+  .calib-add {
+    padding: 10px 18px;
+    color: var(--accent);
+    font-size: 13px;
+    cursor: pointer;
+    border-top: 1px solid var(--border);
+    background: white;
+  }
+  .calib-add:hover { background: var(--surface-2); }
+
+  .why-link {
+    color: var(--text-3); font-size: 11px;
+    cursor: pointer; text-decoration: underline;
+    text-decoration-color: rgba(0,0,0,0.1);
+    margin-left: auto;
+  }
+  .why-link:hover { color: var(--text); }
+
+  .period-grid {
+    padding: 16px 18px 8px;
+  }
+  .period-row {
+    display: grid;
+    grid-template-columns: 80px repeat(4, 1fr);
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .period-fy {
+    font-weight: 600; font-size: 12px; color: var(--text-2);
+  }
+  .period-fy small { display: block; color: var(--text-3); font-weight: 400; font-size: 10px; }
+  .period-q {
+    border: 1px solid var(--border);
+    background: white;
+    padding: 8px 6px;
+    border-radius: var(--radius-sm);
+    text-align: center;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--text-3);
+    transition: all 120ms;
+  }
+  .period-q:hover { border-color: var(--text-3); }
+  .period-q.checked {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .period-q .q-label { font-weight: 600; }
+  .period-q .q-range { font-size: 10px; opacity: 0.7; margin-top: 2px; }
+
+  .source-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center; gap: 10px;
+    padding: 9px 18px;
+  }
+  .source-row .check { width: 16px; height: 16px; border: 1.5px solid var(--border-strong); border-radius: 4px; cursor: pointer; flex-shrink: 0; background: white; display:flex; align-items:center; justify-content:center; transition: all 120ms; }
+  .source-row .check.checked { background: var(--accent); border-color: var(--accent); }
+  .source-row .check.checked::after { content: '✓'; color: white; font-size: 11px; font-weight: 700; }
+  .source-row .source-name { font-size: 13px; }
+  .source-row .source-table {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--text-3);
+    background: var(--surface-2);
+    padding: 2px 7px; border-radius: 4px;
+  }
+  .source-row.optional .source-name { color: var(--text-2); }
+
+  .upload-area {
+    margin: 14px 18px;
+    border: 2px dashed var(--border-strong);
+    border-radius: var(--radius);
+    padding: 28px 16px;
+    text-align: center;
+    color: var(--text-3);
+    cursor: pointer;
+    transition: all 150ms;
+  }
+  .upload-area:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .upload-area.has-files {
+    padding: 14px;
+  }
+  .upload-icon { font-size: 24px; margin-bottom: 6px; opacity: 0.6; }
+  .upload-hint { font-size: 12px; }
+
+  .link-input {
+    margin: 8px 18px 14px;
+    display: flex; gap: 8px;
+  }
+  .link-input input {
+    flex: 1; padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: inherit; font-size: 13px;
+    background: white;
+  }
+  .link-input input:focus {
+    outline: none; border-color: var(--accent);
+  }
+
+  .evidence-list {
+    margin: 0 18px 8px;
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+  }
+  .evidence-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 4px;
+    font-size: 13px;
+  }
+  .evidence-icon {
+    width: 28px; height: 28px;
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; color: var(--text-2);
+  }
+  .evidence-name { flex: 1; }
+  .evidence-attr { color: var(--text-3); font-size: 11px; }
+  .evidence-remove {
+    color: var(--text-3); cursor: pointer; padding: 4px;
+  }
+  .evidence-remove:hover { color: var(--rag-high); }
+
+  /* ============================ POPOVER ============================ */
+  .popover-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(15, 23, 42, 0.4);
+    z-index: 200;
+    display: flex; align-items: center; justify-content: center;
+    animation: fadeIn 160ms;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .popover {
+    background: white;
+    border-radius: var(--radius);
+    padding: 24px 28px;
+    max-width: 520px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    animation: zoomIn 200ms ease-out;
+  }
+  .popover h3 { margin: 0 0 12px; font-size: 16px; }
+  .popover p { margin: 0 0 12px; color: var(--text-2); font-size: 14px; line-height: 1.6; }
+  .popover ul { padding-left: 20px; margin: 8px 0; color: var(--text-2); }
+  .popover li { margin-bottom: 4px; }
+  .popover-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+  /* ============================ SCREEN 4 ============================ */
+  .report-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 22px 40px 0;
+  }
+  .report-header-top {
+    display: flex; align-items: start; justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 16px;
+  }
+  .report-meta {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px; color: var(--text-3);
+    margin-bottom: 6px;
+  }
+  .version-tag {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--surface-2); padding: 2px 8px;
+    border-radius: 4px;
+  }
+  .report-title {
+    font-size: 24px; font-weight: 600; letter-spacing: -0.02em;
+    margin: 0;
+  }
+
+  .action-menu {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .action-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: white;
+    font-family: inherit; font-size: 12px; font-weight: 500;
+    color: var(--text-2);
+    cursor: pointer;
+    transition: all 120ms;
+  }
+  .action-btn:hover { border-color: var(--text-3); color: var(--text); background: var(--surface-2); }
+  .action-btn.primary {
+    background: var(--accent); color: white; border-color: var(--accent);
+  }
+  .action-btn.primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+  .action-btn.signed {
+    background: #16a34a; color: white; border-color: #16a34a;
+  }
+
+  .tab-strip {
+    display: flex; gap: 2px;
+    border-bottom: 1px solid var(--border);
+    margin: 0 -40px;
+    padding: 0 40px;
+    overflow-x: auto;
+  }
+  .tab {
+    padding: 12px 18px;
+    cursor: pointer;
+    color: var(--text-3);
+    font-size: 13px; font-weight: 500;
+    border-bottom: 2px solid transparent;
+    transition: all 120ms;
+    white-space: nowrap;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-num {
+    font-size: 11px; opacity: 0.6; margin-right: 6px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .report-body {
+    padding: 32px 40px 80px;
+    max-width: none;
+  }
+  .report-body h2 {
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-3);
+    margin: 0 0 12px;
+  }
+  .report-body h3 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 28px 0 10px;
+  }
+  .report-body p {
+    font-size: 15px; line-height: 1.7; max-width: 760px;
+    color: var(--text);
+    margin: 0 0 14px;
+  }
+
+  /* Tab 1 — exec summary */
+  .exec-grid {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 36px;
+    align-items: start;
+  }
+  .kpi-rail {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    position: sticky; top: 20px;
+  }
+  .kpi-rail-title {
+    font-size: 11px; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: 0.08em;
+    font-weight: 600; margin-bottom: 14px;
+  }
+  .kpi-tile {
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .kpi-tile:last-child { border-bottom: none; }
+  .kpi-label {
+    font-size: 11px; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: 0.04em;
+    margin-bottom: 4px;
+  }
+  .kpi-value {
+    font-size: 22px; font-weight: 600; letter-spacing: -0.02em;
+  }
+  .kpi-sub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+  /* Tab 2 — scope */
+  .scope-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+  .scope-col h4 {
+    font-size: 11px; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: 0.08em;
+    font-weight: 600; margin: 0 0 12px;
+  }
+  .scope-col h4.in { color: #16a34a; }
+  .scope-col h4.out { color: var(--rag-medium); }
+  .scope-section {
+    margin-bottom: 20px;
+  }
+  .scope-section-title {
+    font-size: 13px; font-weight: 600; margin-bottom: 6px;
+    color: var(--text-2);
+  }
+  .scope-list {
+    list-style: none; padding: 0; margin: 0;
+    font-size: 13px; color: var(--text-2);
+  }
+  .scope-list li {
+    padding: 4px 0;
+    display: flex; gap: 10px;
+  }
+  .scope-list li::before {
+    content: '·'; color: var(--text-4);
+  }
+  .scope-list li small {
+    display: block; color: var(--text-3); font-size: 11px;
+    margin-top: 2px;
+  }
+
+  /* Tab 4 — charts */
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 20px;
+  }
+  .chart-card-title {
+    font-size: 14px; font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .chart-card-sub {
+    font-size: 12px; color: var(--text-3);
+    margin-bottom: 14px;
+  }
+  .chart-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .chart-host { height: 320px; position: relative; }
+  .chart-host-sm { height: 280px; position: relative; }
+
+  table.report-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  table.report-table th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-3);
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+    cursor: pointer;
+    user-select: none;
+  }
+  table.report-table th:hover { background: var(--border); }
+  table.report-table th.sorted::after {
+    content: ' ▾'; opacity: 0.5;
+  }
+  table.report-table td {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.report-table tr:hover td { background: var(--surface-2); }
+  td.number-cell { font-variant-numeric: tabular-nums; }
+  td.traceable {
+    cursor: pointer;
+    color: var(--accent);
+    text-decoration: underline;
+    text-decoration-style: dotted;
+  }
+  .status-chip {
+    display: inline-block;
+    font-size: 11px; font-weight: 500;
+    padding: 2px 8px; border-radius: 10px;
+  }
+  .status-chip.review { background: var(--rag-medium-soft); color: var(--rag-medium); }
+  .status-chip.flagged { background: var(--rag-high-soft); color: var(--rag-high); }
+  .status-chip.ok { background: var(--rag-low-soft); color: var(--rag-low); }
+
+  /* Tab 5 — observations */
+  .observation {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    border-left: 4px solid var(--border);
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .observation.critical { border-left-color: var(--rag-critical); }
+  .observation.high { border-left-color: var(--rag-high); }
+  .observation.medium { border-left-color: var(--rag-medium); }
+  .observation.low { border-left-color: var(--rag-low); }
+
+  .obs-head {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 10px;
+  }
+  .obs-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--text-3);
+  }
+  .obs-title {
+    font-size: 15px; font-weight: 600; flex: 1;
+    line-height: 1.4;
+  }
+  .obs-section {
+    margin: 12px 0;
+    font-size: 13px;
+  }
+  .obs-section-label {
+    font-size: 11px; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+  .obs-section-body { color: var(--text-2); line-height: 1.6; }
+  .control-chip {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    background: var(--accent-soft); color: var(--accent);
+    padding: 2px 8px; border-radius: 4px; margin-right: 4px;
+    font-weight: 500;
+  }
+  .obs-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px 28px;
+  }
+
+  /* Tab 6 — conclusion */
+  .conclusion-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px 36px;
+    max-width: 760px;
+  }
+  .conclusion-card p {
+    margin-bottom: 16px;
+  }
+  .recommendation-block {
+    background: var(--accent-soft);
+    border-left: 4px solid var(--accent);
+    padding: 16px 20px;
+    margin: 20px 0;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  }
+  .recommendation-block .label {
+    font-size: 11px; font-weight: 600; color: var(--accent);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 4px;
+  }
+  .signoff-block {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+  }
+  .signoff-field {
+    border-bottom: 2px solid var(--text);
+    padding-bottom: 4px;
+    min-height: 36px;
+    display: flex; align-items: flex-end;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .signoff-label {
+    font-size: 11px; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    margin-top: 6px;
+  }
+
+  /* Modal */
+  .modal {
+    position: fixed; inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    z-index: 200;
+    display: flex; align-items: center; justify-content: center;
+    animation: fadeIn 160ms;
+    padding: 20px;
+  }
+  .modal-card {
+    background: white;
+    border-radius: var(--radius-lg);
+    padding: 32px 36px;
+    max-width: 520px; width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    animation: zoomIn 200ms ease-out;
+  }
+  .modal-title {
+    font-size: 18px; font-weight: 600; margin: 0 0 14px;
+    letter-spacing: -0.01em;
+  }
+  .modal-body p { color: var(--text-2); line-height: 1.6; font-size: 14px; margin-bottom: 16px; }
+  .modal-checks { margin: 18px 0 8px; }
+  .check-row {
+    display: flex; align-items: start; gap: 10px;
+    padding: 10px 0;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .check-row .check {
+    width: 16px; height: 16px;
+    border: 1.5px solid var(--border-strong);
+    border-radius: 4px;
+    flex-shrink: 0;
+    margin-top: 1px;
+    background: white;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .check-row .check.checked { background: var(--accent); border-color: var(--accent); }
+  .check-row .check.checked::after { content: '✓'; color: white; font-size: 11px; font-weight: 700; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    background: var(--text); color: white;
+    padding: 12px 20px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: var(--shadow-lg);
+    z-index: 300;
+    display: flex; align-items: center; gap: 10px;
+    animation: slideUp 240ms ease-out;
+  }
+  .toast::before { content: '✓'; color: #4ade80; font-weight: 700; }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translate(-50%, 12px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+  }
+
+  /* Share picker */
+  .share-list {
+    margin: 8px 0;
+    border-top: 1px solid var(--border);
+  }
+  .share-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .share-row .avatar { width: 28px; height: 28px; font-size: 11px; }
+  .share-name { font-size: 13px; font-weight: 500; flex: 1; }
+  .share-role { font-size: 11px; color: var(--text-3); }
+
+  /* Export menu */
+  .export-menu {
+    position: absolute; right: 40px; top: 100px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    padding: 4px;
+    min-width: 180px;
+    z-index: 100;
+  }
+  .export-menu-item {
+    padding: 9px 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 13px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .export-menu-item:hover { background: var(--surface-2); }
+
+  /* Plan & History pages */
+  .empty-page {
+    text-align: center;
+    padding: 80px 40px;
+    color: var(--text-3);
+  }
+  .empty-page h2 { font-size: 20px; color: var(--text); margin: 0 0 8px; }
+  .history-row {
+    display: grid;
+    grid-template-columns: 16px 100px 1fr 140px 100px;
+    gap: 16px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+  }
+  .history-row:hover { background: var(--surface-2); }
+
+  /* small icon helpers */
+  .ico-svg { display: inline-block; vertical-align: middle; }
+
+  /* Trace popover */
+  .trace-pop {
+    background: white;
+    padding: 20px 24px;
+    border-radius: var(--radius);
+    max-width: 520px;
+    box-shadow: var(--shadow-lg);
+  }
+  .trace-pop h4 { margin: 0 0 8px; font-size: 14px; }
+  .trace-table {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    background: var(--surface-2); padding: 12px; border-radius: var(--radius-sm);
+    color: var(--text-2);
+    line-height: 1.7;
+  }
+  .trace-table strong { color: var(--text); }
+
+  @media (max-width: 1100px) {
+    .scope-grid, .chart-row, .tile-grid, .exec-grid { grid-template-columns: 1fr; }
+    .obs-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* =================================================================
+   STATE
+================================================================= */
+const state = {
+  screen: 'mobile', // mobile | home | analysis | plan | report | history | planpage | settings | interstitialA | interstitialB
+  activeNotificationId: null,
+  role: 'Head of Internal Audit',
+  reportTab: 'summary',
+  signed: false,
+  showExportMenu: false,
+  modal: null, // 'signoff' | 'share' | 'why-controls' | 'why-entities' | 'why-lobs' | 'trace'
+  modalData: null,
+  toast: null,
+  caeNote: '',
+  // calibration state
+  calibration: {
+    controls: {}, // id -> bool
+    entities: {},
+    lobs: {},
+    sources: {},
+    periods: {}, // 'FY27-Q1' -> bool
+    evidence: []
+  },
+  notifications: []
+};
+
+/* =================================================================
+   SEED DATA
+================================================================= */
+const NOTIFICATIONS = [
+  {
+    id: 'n1',
+    severity: 'critical',
+    source: 'FASB / IASB',
+    detectedAt: '02:14 UTC',
+    title: 'ASC 606 / IFRS 15 amendments — bundled offerings & channel rebates',
+    what: 'New rules on bundled HW+SW+Service deals and channel rebates. Effective FY27.',
+    why: '<strong>~58% of FY27 revenue is exposed.</strong> Two prior audits (IA-2024-08, IA-2025-12) already flagged residual risk here.',
+    alreadyDone: [
+      'Verified against IFRS primary source',
+      '6 controls · 5 entities · 1,247 contracts pre-screened'
+    ],
+    sources: ['fasb.org/asc606-amendments', 'ifrs.org/ifrs15', 'sec.gov/registrant-guidance', 'IA-2024-08 (internal)', 'IA-2025-12 (internal)']
+  },
+  {
+    id: 'n2',
+    severity: 'high',
+    source: 'SEC',
+    detectedAt: '03:42 UTC',
+    title: 'Cybersecurity disclosure timing tightened (Item 1.05 8-K)',
+    what: 'Materiality window shortened for 8-K cyber disclosures.',
+    why: '<strong>3 gaps</strong> in our IR playbook. CISO and Disclosure Committee already notified.',
+    alreadyDone: [
+      'Rule text mapped to IR playbook v3.2',
+      '3 process gaps identified'
+    ],
+    sources: ['sec.gov/rules/final/cyber-disclosure', 'IR-Playbook-v3.2 (internal)']
+  },
+  {
+    id: 'n3',
+    severity: 'medium',
+    source: 'EU Commission',
+    detectedAt: '06:08 UTC',
+    title: 'EU AI Act — high-risk system definitions expanded',
+    what: 'Scope of "high-risk" AI broadened in EMEA enforcement guidance.',
+    why: '<strong>2 enterprise products</strong> may be reclassified. Legal already informed.',
+    alreadyDone: [
+      'Product catalog mapped',
+      '2 candidate modules flagged'
+    ],
+    sources: ['ec.europa.eu/ai-act/guidance', 'Helix Product Catalog (internal)']
+  },
+  {
+    id: 'n4',
+    severity: 'medium',
+    source: 'PCAOB',
+    detectedAt: '04:55 UTC',
+    title: 'QC 1000 effective date confirmed',
+    what: 'External auditors move to new QC framework from Q3 FY27.',
+    why: 'AC coordination needed on <strong>transition disclosures</strong>.',
+    alreadyDone: [
+      'AC briefing note drafted',
+      'Circulated to External Auditor Liaison'
+    ],
+    sources: ['pcaobus.org/qc1000', 'AC-Pre-Read-Q1-FY27 (internal)']
+  },
+  {
+    id: 'n5',
+    severity: 'low',
+    source: 'California AG / China CAC',
+    detectedAt: '08:21 UTC',
+    title: 'Q1 enforcement actions on cross-border data transfers',
+    what: 'Clarified expectations on data residency for US–China telemetry flows.',
+    why: 'Existing SCCs cover us. <strong>No action required.</strong>',
+    alreadyDone: [
+      'Logged for next privacy review'
+    ],
+    sources: ['oag.ca.gov/enforcement-q1', 'cac.gov.cn/q1-actions', 'Helix-Privacy-Review-FY27 (internal)']
+  }
+];
+state.notifications = NOTIFICATIONS;
+
+const CONTROLS = [
+  { id: 'REV-001', name: 'Performance obligation identification at contract inception', source: 'Oracle RMC + IA-2024-08', desc: 'Identify distinct goods/services in bundled HW+SW+Service contracts' },
+  { id: 'REV-002', name: 'Standalone selling price (SSP) allocation methodology', source: 'Oracle RMC', desc: 'Allocate transaction price to performance obligations based on relative SSP' },
+  { id: 'REV-003', name: 'Variable consideration estimation for channel rebates', source: 'IA-2025-12', desc: 'Estimate constraint and allocation of variable consideration' },
+  { id: 'REV-004', name: 'Revenue recognition timing — point-in-time vs over-time (software)', source: 'Oracle RMC', desc: 'Determine recognition pattern based on customer control' },
+  { id: 'REV-005', name: 'Contract modification accounting — distinct vs combined', source: 'Oracle OKC', desc: 'Treat modifications as separate or part of original contract' },
+  { id: 'REV-006', name: 'Principal vs agent assessment — resold third-party software', source: 'Risk universe', desc: 'Determine whether Helix controls goods/services before transfer' }
+];
+
+const ENTITIES = [
+  { code: 'HCI-US', name: 'Helix Computing Inc. (US Parent)', region: 'NA', rationale: 'US Parent — primary registrant, ASC 606 jurisdiction' },
+  { code: 'HCI-IE', name: 'Helix Computing Ireland Ltd. (EMEA HQ)', region: 'EMEA', rationale: 'EMEA HQ — IFRS 15 reporting, channel hub' },
+  { code: 'HCI-SG', name: 'Helix Singapore Pte. Ltd. (APAC HQ)', region: 'APAC', rationale: 'APAC HQ — bundled enterprise contracts' },
+  { code: 'HCI-JP', name: 'Helix Computing Japan KK', region: 'APAC', rationale: 'High channel rebate activity' },
+  { code: 'HCI-DE', name: 'Helix Computing Germany GmbH', region: 'EMEA', rationale: 'Significant enterprise software volume' },
+  { code: 'HCI-UK', name: 'Helix Computing UK Ltd.', region: 'EMEA', rationale: 'Material contracts under modification' }
+];
+
+const LOBS = [
+  { id: 'consumer-hw', name: 'Consumer Hardware', desc: 'PCs, accessories, peripherals' },
+  { id: 'enterprise-hw', name: 'Enterprise Hardware', desc: 'Servers, storage, networking' },
+  { id: 'consumer-sw', name: 'Consumer Software', desc: 'Productivity & security suites' },
+  { id: 'enterprise-sw', name: 'Enterprise Software', desc: 'SaaS subscriptions, on-prem licenses' },
+  { id: 'channel', name: 'Channel & Partner Sales', desc: 'Distribution, resellers, marketplace' }
+];
+
+const SOURCE_SYSTEMS = [
+  { id: 'rmc', name: 'Revenue Management Cloud (RMC)', table: 'RMC_PERFORMANCE_OBLIGATIONS', primary: true },
+  { id: 'om', name: 'Order Management (OM)', table: 'OE_ORDER_HEADERS_ALL', primary: true },
+  { id: 'okc', name: 'Contracts (OKC)', table: 'OKC_K_LINES_B', primary: true },
+  { id: 'xla', name: 'Subledger Accounting (XLA)', table: 'XLA_AE_HEADERS', primary: true },
+  { id: 'gl', name: 'General Ledger (GL)', table: 'GL_JE_LINES', primary: true },
+  { id: 'ar', name: 'Accounts Receivable (AR)', table: 'RA_CUSTOMER_TRX_ALL', primary: false },
+  { id: 'pricing', name: 'Pricing', table: 'QP_LIST_HEADERS_B', primary: false },
+  { id: 'istore', name: 'iStore (B2C web channel)', table: 'IBE_CT_QUOTE_HEADERS', primary: false }
+];
+
+const PERIODS = [
+  { fy: 'FY27', label: 'Feb 2026 – Jan 2027 (current)', quarters: [
+    { id: 'FY27-Q1', label: 'Q1', range: 'Feb–Apr 2026', preChecked: true },
+    { id: 'FY27-Q2', label: 'Q2', range: 'May–Jul 2026', preChecked: false },
+    { id: 'FY27-Q3', label: 'Q3', range: 'Aug–Oct 2026', preChecked: false },
+    { id: 'FY27-Q4', label: 'Q4', range: 'Nov 2026–Jan 2027', preChecked: false }
+  ]},
+  { fy: 'FY26', label: 'Feb 2025 – Jan 2026', quarters: [
+    { id: 'FY26-Q1', label: 'Q1', range: 'Feb–Apr 2025', preChecked: false },
+    { id: 'FY26-Q2', label: 'Q2', range: 'May–Jul 2025', preChecked: false },
+    { id: 'FY26-Q3', label: 'Q3', range: 'Aug–Oct 2025', preChecked: true },
+    { id: 'FY26-Q4', label: 'Q4', range: 'Nov 2025–Jan 2026', preChecked: true }
+  ]},
+  { fy: 'FY25', label: 'Feb 2024 – Jan 2025', quarters: [
+    { id: 'FY25-Q1', label: 'Q1', range: 'Feb–Apr 2024', preChecked: false },
+    { id: 'FY25-Q2', label: 'Q2', range: 'May–Jul 2024', preChecked: false },
+    { id: 'FY25-Q3', label: 'Q3', range: 'Aug–Oct 2024', preChecked: false },
+    { id: 'FY25-Q4', label: 'Q4', range: 'Nov 2024–Jan 2025', preChecked: true }
+  ]},
+  { fy: 'FY24', label: 'Feb 2023 – Jan 2024', quarters: [
+    { id: 'FY24-Q1', label: 'Q1', range: 'Feb–Apr 2023', preChecked: false },
+    { id: 'FY24-Q2', label: 'Q2', range: 'May–Jul 2023', preChecked: false },
+    { id: 'FY24-Q3', label: 'Q3', range: 'Aug–Oct 2023', preChecked: false },
+    { id: 'FY24-Q4', label: 'Q4', range: 'Nov 2023–Jan 2024', preChecked: false }
+  ]}
+];
+
+const PRESEED_EVIDENCE = [
+  { name: 'IA-2024-08 ASC 606 audit report.pdf', type: 'PDF', addedBy: 'Aegis (auto-attached)' },
+  { name: 'IA-2025-12 channel rebates audit.pdf', type: 'PDF', addedBy: 'Aegis (auto-attached)' }
+];
+
+const SHARE_TARGETS = [
+  { name: 'Lin Park', role: 'Head of SOX', initials: 'LP' },
+  { name: 'David Chen', role: 'Senior Audit Manager', initials: 'DC' },
+  { name: 'Sara Whitfield', role: 'External Auditor Liaison', initials: 'SW' },
+  { name: 'Marco Bianchi', role: 'EMEA Audit Lead', initials: 'MB' },
+  { name: 'Audit Committee Chair', role: 'Board', initials: 'AC' }
+];
+
+// initialise calibration defaults
+function initCalibration() {
+  CONTROLS.forEach(c => state.calibration.controls[c.id] = true);
+  ENTITIES.slice(0, 5).forEach(e => state.calibration.entities[e.code] = true);
+  state.calibration.entities['HCI-UK'] = false;
+  LOBS.forEach(l => state.calibration.lobs[l.id] = true);
+  SOURCE_SYSTEMS.forEach(s => state.calibration.sources[s.id] = !!s.primary);
+  PERIODS.forEach(fy => fy.quarters.forEach(q => state.calibration.periods[q.id] = q.preChecked));
+  state.calibration.evidence = [...PRESEED_EVIDENCE];
+}
+initCalibration();
+
+/* =================================================================
+   ROUTING / RENDER
+================================================================= */
+const $app = document.getElementById('app');
+
+function render() {
+  let body = '';
+  if (state.screen === 'interstitialA' || state.screen === 'interstitialB') {
+    body = renderInterstitial(state.screen);
+  } else if (state.screen === 'mobile') {
+    body = renderMobile();
+  } else {
+    body = `
+      <div class="app">
+        ${renderSidebar()}
+        <div class="main">
+          ${renderTopbar()}
+          ${renderScreen()}
+        </div>
+      </div>
+    `;
+  }
+  body += renderModal();
+  body += renderToast();
+  $app.innerHTML = body;
+  attachHandlers();
+  if (state.screen === 'report' && state.reportTab === 'analysis') {
+    drawCharts();
+  }
+}
+
+/* =================================================================
+   SIDEBAR / TOPBAR
+================================================================= */
+function renderSidebar() {
+  const items = [
+    { id: 'home', label: 'Home', icon: iconHome() },
+    { id: 'history', label: 'History', icon: iconClock() },
+    { id: 'planpage', label: 'Plan', icon: iconCalendar() },
+    { id: 'settings', label: 'Settings', icon: iconCog() }
+  ];
+  const activeForNav = ['analysis','plan','report','interstitialA','interstitialB'].includes(state.screen) ? 'home' : state.screen;
+  return `
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        <div>
+          <div class="brand-name">Aegis</div>
+          <div class="brand-tag">Audit & Risk</div>
+        </div>
+      </div>
+      ${items.map(i => `
+        <div class="nav-item ${activeForNav === i.id ? 'active' : ''}" data-nav="${i.id}">
+          ${i.icon}<span>${i.label}</span>
+        </div>
+      `).join('')}
+      <div class="sidebar-footer">
+        <div class="role-pill">
+          Acting as
+          <select id="role-select">
+            <option ${state.role === 'CAE' ? 'selected':''}>CAE</option>
+            <option ${state.role === 'Head of Internal Audit' ? 'selected':''}>Head of Internal Audit</option>
+            <option ${state.role === 'Head of SOX' ? 'selected':''}>Head of SOX</option>
+          </select>
+        </div>
+      </div>
+    </aside>
+  `;
+}
+
+function renderTopbar() {
+  const today = new Date('2026-05-03').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  return `
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-date">${today}</div>
+        <div class="topbar-status">
+          <span class="pulse-dot"></span>
+          <span>Agent active · 14 feeds monitored · last full sweep 47 minutes ago.</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span>${state.role}</span>
+        <div class="avatar">EM</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderScreen() {
+  switch (state.screen) {
+    case 'home': return renderHome();
+    case 'analysis': return renderAnalysis();
+    case 'plan': return renderPlan();
+    case 'report': return renderReport();
+    case 'history': return renderHistory();
+    case 'planpage': return renderPlanPage();
+    case 'settings': return renderSettings();
+    default: return renderHome();
+  }
+}
+
+/* =================================================================
+   SCREEN 1 — HOME
+================================================================= */
+function renderHome() {
+  const items = state.notifications.map(renderNotificationRow).join('');
+  return `
+    <div class="page">
+      <header class="home-header">
+        <h1 class="home-title">Good morning, Emma</h1>
+        <div class="home-subtitle">Aegis has been at work overnight. Here's what needs your attention.</div>
+      </header>
+      <div class="briefing-tile">
+        <div class="tile-header">
+          <div class="tile-title">This morning's briefing</div>
+          <div class="tile-meta">5 events raised · sorted by severity</div>
+        </div>
+        ${items}
+      </div>
+      <div class="home-counts">
+        42 events screened in the last 24h · 5 raised for your attention · <a data-nav="history">37 dismissed by agent with rationale</a>
+      </div>
+    </div>
+  `;
+}
+
+function renderNotificationRow(n) {
+  return `
+    <div class="notif ${n.severity}" data-notif="${n.id}">
+      <div class="notif-rail ${n.severity}"></div>
+      <div class="notif-body">
+        <div class="notif-meta">
+          <span class="sev-tag ${n.severity}">${n.severity}</span>
+          <span class="notif-source">${n.source}</span>
+          <span class="verified">Verified</span>
+          <span class="notif-time">${n.detectedAt}</span>
+        </div>
+        <h3 class="notif-title">${n.title}</h3>
+        <p class="notif-what">${n.what}</p>
+        <p class="notif-why"><strong>Impact:</strong> ${n.why}</p>
+        <div class="agent-done-inline">
+          <span class="agent-done-label">Agent has done</span>
+          ${n.alreadyDone.map(d => `<span class="done-chip">${d}</span>`).join('')}
+        </div>
+      </div>
+      <div class="notif-action">
+        <button class="btn btn-primary" data-action="discover" data-id="${n.id}">Discover more →</button>
+      </div>
+    </div>
+  `;
+}
+
+/* =================================================================
+   SCREEN 2 — PRELIMINARY ANALYSIS
+================================================================= */
+function renderAnalysis() {
+  const n = NOTIFICATIONS.find(x => x.id === state.activeNotificationId) || NOTIFICATIONS[0];
+  const isRevRec = n.id === 'n1';
+  const summary = isRevRec
+    ? [
+        '<strong>What changed.</strong> ASC 606 / IFRS 15 now require stricter separation of performance obligations in bundled HW+SW+Service deals, and a tighter constraint on channel-rebate variable consideration.',
+        '<strong>When.</strong> Mandatory for fiscal years starting after 15 Dec 2026 — Helix FY27 is the first full year of compliance.',
+        '<strong>Why us.</strong> Bundled deals and channel rebates touch ~58% of FY27 revenue. Prior audits IA-2024-08 and IA-2025-12 already flagged residual weakness here.'
+      ]
+    : [n.what];
+
+  const stats = isRevRec
+    ? [
+        { label: 'Estimated revenue affected', value: '~$214M', sub: 'across in-scope entities' },
+        { label: 'Contracts in scope', value: '1,247', sub: 'flagged in Oracle OKC' },
+        { label: 'Reporting entities', value: '5', sub: 'pre-screened by agent' }
+      ]
+    : [
+        { label: 'Estimated impact', value: 'Pending', sub: 'awaiting calibration' },
+        { label: 'Items in scope', value: '—', sub: '' },
+        { label: 'Reporting entities', value: '—', sub: '' }
+      ];
+
+  return `
+    <div class="page">
+      <div class="breadcrumb">
+        <a data-nav="home">Home</a> <span>›</span> <span>Preliminary analysis</span>
+      </div>
+      <div class="event-header">
+        <div class="event-header-left">
+          <div class="event-meta">
+            <span class="sev-tag ${n.severity}">${n.severity}</span>
+            <span>${n.source}</span>
+            <span class="verified">Verified against primary source</span>
+            <span>·</span>
+            <span>Detected overnight at ${n.detectedAt}</span>
+          </div>
+          <h1 class="event-title">${n.title}</h1>
+        </div>
+      </div>
+
+      <div class="reading">
+        <section>
+          <h2>1 · Summary of the change</h2>
+          ${summary.map(s => `<p>${s}</p>`).join('')}
+        </section>
+
+        <section>
+          <h2>2 · Potential revenue impact — first-pass estimate</h2>
+          <p class="muted">Cross-referenced with <strong>IA-2024-08</strong> and <strong>IA-2025-12</strong> · pre-screen of Oracle RMC + OKC for FY27 Q1.</p>
+          <div class="stats-strip">
+            ${stats.map(s => `
+              <div class="stat">
+                <div class="stat-label">${s.label}</div>
+                <div class="stat-value">${s.value}</div>
+                <div class="stat-sub">${s.sub}</div>
+                <span class="stat-flag">Preliminary — to be validated</span>
+              </div>
+            `).join('')}
+          </div>
+        </section>
+
+        <section>
+          <h2>3 · Categories of controls likely affected</h2>
+          <ul class="control-list">
+            ${CONTROLS.map(c => `
+              <li>
+                <span class="control-name"><span class="mono" style="color:var(--text-3);font-size:11px">${c.id}</span> · ${c.name.split('—')[0].trim()}</span>
+                <span class="control-desc">${c.desc}</span>
+              </li>
+            `).join('')}
+          </ul>
+        </section>
+
+        <section>
+          <h2>4 · In-scope entities — first pass</h2>
+          <ul class="entity-list">
+            ${ENTITIES.slice(0,5).map(e => `
+              <li>
+                <span class="entity-code">${e.code}</span>
+                <span class="entity-name">${e.name}</span>
+                <span class="entity-rationale">${e.rationale}</span>
+              </li>
+            `).join('')}
+          </ul>
+        </section>
+
+        <div class="action-bar">
+          <button class="btn btn-primary btn-lg" data-action="goto-plan">Plan the assessment →</button>
+          <a class="btn-link" data-action="rescreen">Send back to agent for re-screen</a>
+        </div>
+
+        <div class="sources-footer">
+          <div class="sources-footer-label">Sources used by the agent</div>
+          <ul>${n.sources.map(s => `<li>${s}</li>`).join('')}</ul>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* =================================================================
+   INTERSTITIAL
+================================================================= */
+const LOG_LINES_A = [
+  '[02:14:08]  Connected to FASB primary source · validated rule text hash',
+  '[02:14:09]  Pulling internal audit corpus — IA-2024-08, IA-2025-12 retrieved',
+  '[02:14:11]  Cross-referencing risk universe entries RU-REV-001 through RU-REV-014',
+  '[02:14:13]  Scanning Oracle Revenue Management Cloud control library',
+  '[02:14:14]  6 candidate controls identified · ranking by relevance',
+  '[02:14:15]  Querying entity master from Oracle GL — XLE_ENTITY_PROFILES',
+  '[02:14:17]  5 reporting entities flagged for first-pass scope',
+  '[02:14:18]  Mapping LOB taxonomy to product master (MTL_SYSTEM_ITEMS_B)',
+  '[02:14:19]  5 lines of business identified · sampling baseline prior periods',
+  '[02:14:21]  Ready for human calibration'
+];
+
+const LOG_LINES_B = [
+  { line: '[02:14:32]  Querying RMC_PERFORMANCE_OBLIGATIONS for FY27 Q1 · 14,802 rows', count: 14802 },
+  { line: '[02:14:34]  Filtering by 5 in-scope entities · 11,418 rows retained', count: 11418 },
+  { line: '[02:14:36]  Joining to OKC_K_HEADERS_ALL_B · 1,247 distinct contracts', count: 1247 },
+  { line: '[02:14:38]  Sampling 312 contracts · stratified by LOB and contract value', count: 312 },
+  { line: '[02:14:41]  Re-evaluating performance obligation identification (REV-001)', count: 312 },
+  { line: '[02:14:43]  87 contracts show bundle decomposition variance > 5%', count: 87 },
+  { line: '[02:14:45]  Tracing to OE_ORDER_LINES_ALL · 942 line items implicated', count: 942 },
+  { line: '[02:14:47]  Querying GL_JE_LINES for revenue recognition postings (FY27 Q1)', count: 942 },
+  { line: '[02:14:49]  Reconciling against XLA_AE_HEADERS subledger entries', count: 942 },
+  { line: '[02:14:51]  $214M of recognized revenue impacted (preliminary estimate)', count: 942 },
+  { line: '[02:14:53]  Comparing to FY26 Q4 baseline · variance pattern consistent', count: 942 },
+  { line: '[02:14:55]  Pulling IA-2024-08 and IA-2025-12 finding catalogues', count: 942 },
+  { line: '[02:14:57]  Cross-mapping 4 prior findings to amended standard sections', count: 942 },
+  { line: '[02:14:59]  Drafting executive summary · approach · key analysis tabs', count: 942 },
+  { line: '[02:15:01]  Generating charts · revenue by LOB · variance by entity', count: 942 },
+  { line: '[02:15:03]  Drafting key observations and suggested control updates', count: 942 },
+  { line: '[02:15:05]  Drafting overall conclusion · checking for internal consistency', count: 942 },
+  { line: '[02:15:07]  Validating numerical traceability · all figures linked to source', count: 942 },
+  { line: '[02:15:09]  Draft report ready for review', count: 942 }
+];
+
+/* =================================================================
+   SCREEN 0 — MOBILE NOTIFICATION (entry point)
+================================================================= */
+function renderMobile() {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  // top three notifications surfaced on the lock screen
+  const lockNotifs = state.notifications.slice(0, 3);
+  const headline = state.notifications[0];
+  return `
+    <div class="mobile-stage">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="phone-statusbar">
+            <span class="phone-time">${hh}:${mm}</span>
+            <div class="phone-status-icons">
+              <span class="phone-bars"></span>
+              <span class="phone-wifi"></span>
+              <span class="phone-battery"></span>
+            </div>
+          </div>
+
+          <div class="phone-lockinfo">
+            <div class="phone-date">${now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+            <div class="phone-bigtime">${hh}:${mm}</div>
+          </div>
+
+          <div class="phone-notif-stack">
+            <div class="phone-notif-group-label">Aegis · ${lockNotifs.length} new alerts</div>
+            ${lockNotifs.map((n, idx) => `
+              <div class="phone-notif ${idx === 0 ? 'lead' : ''} ${n.severity}">
+                <div class="phone-notif-head">
+                  <div class="phone-app-mark">A</div>
+                  <div class="phone-app-name">AEGIS</div>
+                  <span class="phone-sev sev-${n.severity}">${n.severity.toUpperCase()}</span>
+                  <span class="phone-notif-time">${n.detectedAt}</span>
+                </div>
+                <div class="phone-notif-title">${n.title}</div>
+                <div class="phone-notif-sub">${n.what}</div>
+                ${idx === 0 ? `
+                  <div class="phone-notif-impact"><strong>Impact:</strong> ${n.why}</div>
+                  <div class="phone-actions">
+                    <button class="phone-btn primary" data-action="mobile-plan">Plan before the Analysis</button>
+                    <button class="phone-btn secondary" data-action="mobile-start">Start Analysis Now</button>
+                  </div>
+                ` : ''}
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="phone-bottom-hint">
+            <div class="phone-home-indicator"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mobile-side-note">
+        <div class="mobile-side-mark"><div class="brand-mark"></div><span>Aegis</span></div>
+        <div class="mobile-side-title">An overnight alert is waiting on Emma's phone.</div>
+        <p>Aegis surfaces the <strong>${headline.severity}</strong> event from <strong>${headline.source}</strong> as a push notification. From here, Emma can <strong>plan the assessment first</strong> — calibrating scope before the deep run — or <strong>start the analysis immediately</strong> and review the draft report when it's ready.</p>
+        <div class="mobile-side-meta">Tap a button on the phone to continue.</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderInterstitial(which) {
+  const isA = which === 'interstitialA';
+  return `
+    <div class="interstitial">
+      <div class="interstitial-mark">
+        <div class="brand-mark"></div>
+        <span>Aegis</span>
+      </div>
+      <div class="work-log" id="work-log"></div>
+      ${!isA ? '<div class="row-counter" id="row-counter"></div>' : ''}
+      ${isA ? '<div style="height:18px;"></div>' : ''}
+      <button class="interstitial-skip" data-action="skip-interstitial">Skip animation →</button>
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+  `;
+}
+
+let interstitialTimer = null;
+let interstitialTimers = [];
+function runInterstitial() {
+  const isA = state.screen === 'interstitialA';
+  const lines = isA ? LOG_LINES_A.map(l => ({ line: l, count: null })) : LOG_LINES_B;
+  const duration = isA ? 15000 : 20000;
+  const stepInterval = duration / lines.length;
+  const log = document.getElementById('work-log');
+  const counter = document.getElementById('row-counter');
+  const bar = document.getElementById('progress-bar');
+
+  interstitialTimers = [];
+
+  // animate progress bar
+  if (bar) {
+    requestAnimationFrame(() => {
+      bar.style.transition = `width ${duration}ms linear`;
+      bar.style.width = '100%';
+    });
+  }
+
+  lines.forEach((entry, i) => {
+    const t = setTimeout(() => {
+      if (!log) return;
+      // mark last line as no longer active
+      const prev = log.querySelectorAll('.log-line.active');
+      prev.forEach(p => p.classList.remove('active'));
+      // demote older lines
+      log.querySelectorAll('.log-line').forEach((ln, idx, arr) => {
+        const fromBottom = arr.length - idx;
+        ln.classList.remove('older', 'oldest', 'recent');
+        if (fromBottom === 1) ln.classList.add('recent');
+        else if (fromBottom <= 3) ln.classList.add('older');
+        else ln.classList.add('oldest');
+      });
+      const div = document.createElement('div');
+      div.className = 'log-line active';
+      div.innerHTML = formatLogLine(entry.line);
+      log.appendChild(div);
+      if (counter && entry.count !== null) {
+        counter.innerHTML = `Rows scanned: <strong>${entry.count.toLocaleString()}</strong>`;
+      }
+    }, i * stepInterval);
+    interstitialTimers.push(t);
+  });
+
+  const finishT = setTimeout(() => {
+    if (isA) {
+      state.screen = 'plan';
+      render();
+    } else {
+      // show ready modal
+      const overlay = document.querySelector('.interstitial');
+      if (overlay) {
+        const modal = document.createElement('div');
+        modal.className = 'ready-modal';
+        modal.innerHTML = `
+          <div class="ready-modal-check">✓</div>
+          <h3>Draft Report is Ready</h3>
+          <p>The agent has assembled a six-section draft for your review.</p>
+          <button class="btn btn-primary btn-lg" data-action="open-report">OK</button>
+        `;
+        overlay.appendChild(modal);
+        modal.querySelector('[data-action="open-report"]').addEventListener('click', () => {
+          state.screen = 'report';
+          state.reportTab = 'summary';
+          render();
+        });
+      }
+    }
+  }, duration + 200);
+  interstitialTimers.push(finishT);
+}
+
+function skipInterstitial() {
+  interstitialTimers.forEach(t => clearTimeout(t));
+  interstitialTimers = [];
+  if (state.screen === 'interstitialA') {
+    state.screen = 'plan';
+    render();
+  } else {
+    state.screen = 'report';
+    state.reportTab = 'summary';
+    render();
+  }
+}
+
+function formatLogLine(s) {
+  // wrap timestamp
+  const m = s.match(/^(\[\d{2}:\d{2}:\d{2}\])\s+(.*)$/);
+  if (m) {
+    return `<span class="log-ts">${m[1]}</span>${m[2]}`;
+  }
+  return s;
+}
+
+/* =================================================================
+   SCREEN 3 — PLAN THE ASSESSMENT
+================================================================= */
+function renderPlan() {
+  const n = NOTIFICATIONS.find(x => x.id === state.activeNotificationId) || NOTIFICATIONS[0];
+  return `
+    <div class="page-wide" style="padding: 32px 40px 80px;">
+      <div class="breadcrumb">
+        <a data-nav="home">Home</a> <span>›</span>
+        <a data-action="back-analysis">Preliminary analysis</a> <span>›</span>
+        <span>Plan the assessment</span>
+      </div>
+      <div class="event-header">
+        <div class="event-header-left">
+          <div class="event-meta">
+            <span class="sev-tag ${n.severity}">${n.severity}</span>
+            <span>${n.source}</span>
+            <span class="verified">Verified</span>
+          </div>
+          <h1 class="event-title">${n.title}</h1>
+          <div style="margin-top:8px;color:var(--text-3);font-size:13px;">
+            Calibrate the agent's first pass before the deep run. Toggle anything off-base; add anything missing.
+          </div>
+        </div>
+      </div>
+
+      <div class="tile-grid">
+        ${tileControls()}
+        ${tileEntities()}
+        ${tileLOBs()}
+        ${tilePeriod()}
+        ${tileSources()}
+        ${tileEvidence()}
+      </div>
+
+      <div class="action-bar">
+        <button class="btn btn-primary btn-lg" data-action="run-impact">Run impact analysis →</button>
+        <a class="btn-link" data-action="save-template">Save calibration as a template</a>
+      </div>
+    </div>
+  `;
+}
+
+function tileControls() {
+  const checkedCount = Object.values(state.calibration.controls).filter(Boolean).length;
+  return `
+    <div class="calib-tile">
+      <div class="calib-tile-header">
+        <div class="calib-tile-title">Applicable controls</div>
+        <div class="calib-tile-suggested">${checkedCount} of ${CONTROLS.length} selected · agent suggested 6
+          <a class="why-link" data-action="why" data-key="controls" style="margin-left:8px;">Why suggested?</a>
+        </div>
+      </div>
+      <div class="calib-tile-body">
+        ${CONTROLS.map(c => `
+          <div class="calib-row" data-toggle="control" data-id="${c.id}">
+            <div class="check ${state.calibration.controls[c.id] ? 'checked':''}"></div>
+            <div>
+              <div class="calib-row-main"><strong class="mono" style="font-size:11px;color:var(--text-3);">${c.id}</strong> &nbsp; ${c.name}</div>
+              <div class="calib-row-sub">Source: ${c.source}</div>
+            </div>
+            <div class="calib-row-aside"></div>
+          </div>
+        `).join('')}
+        <div class="calib-add" data-action="add-control">+ Add a control</div>
+      </div>
+    </div>
+  `;
+}
+
+function tileEntities() {
+  const checkedCount = Object.values(state.calibration.entities).filter(Boolean).length;
+  return `
+    <div class="calib-tile">
+      <div class="calib-tile-header">
+        <div class="calib-tile-title">Entities in scope</div>
+        <div class="calib-tile-suggested">${checkedCount} of ${ENTITIES.length} selected
+          <a class="why-link" data-action="why" data-key="entities" style="margin-left:8px;">Why suggested?</a>
+        </div>
+      </div>
+      <div class="calib-tile-body">
+        ${ENTITIES.map(e => `
+          <div class="calib-row" data-toggle="entity" data-id="${e.code}">
+            <div class="check ${state.calibration.entities[e.code] ? 'checked':''}"></div>
+            <div>
+              <div class="calib-row-main"><strong class="mono" style="font-size:11px;color:var(--text-3);">${e.code}</strong> &nbsp; ${e.name}</div>
+              <div class="calib-row-sub">${e.region}</div>
+            </div>
+            <div class="calib-row-aside"></div>
+          </div>
+        `).join('')}
+        <div class="calib-add" data-action="add-entity">+ Add an entity</div>
+      </div>
+    </div>
+  `;
+}
+
+function tileLOBs() {
+  const checkedCount = Object.values(state.calibration.lobs).filter(Boolean).length;
+  return `
+    <div class="calib-tile">
+      <div class="calib-tile-header">
+        <div class="calib-tile-title">Lines of business (speed boats)</div>
+        <div class="calib-tile-suggested">${checkedCount} of ${LOBS.length} selected
+          <a class="why-link" data-action="why" data-key="lobs" style="margin-left:8px;">Why suggested?</a>
+        </div>
+      </div>
+      <div class="calib-tile-body">
+        ${LOBS.map(l => `
+          <div class="calib-row" data-toggle="lob" data-id="${l.id}">
+            <div class="check ${state.calibration.lobs[l.id] ? 'checked':''}"></div>
+            <div>
+              <div class="calib-row-main">${l.name}</div>
+              <div class="calib-row-sub">${l.desc}</div>
+            </div>
+          </div>
+        `).join('')}
+        <div class="calib-add" data-action="add-lob">+ Add an LOB</div>
+      </div>
+    </div>
+  `;
+}
+
+function tilePeriod() {
+  return `
+    <div class="calib-tile">
+      <div class="calib-tile-header">
+        <div class="calib-tile-title">Period</div>
+        <div class="calib-tile-suggested">FY27 current · FY26/FY25 baseline</div>
+      </div>
+      <div class="period-grid">
+        ${PERIODS.map(fy => `
+          <div class="period-row">
+            <div class="period-fy">${fy.fy}<small>${fy.label}</small></div>
+            ${fy.quarters.map(q => `
+              <div class="period-q ${state.calibration.periods[q.id] ? 'checked':''}" data-toggle="period" data-id="${q.id}">
+                <div class="q-label">${q.label}</div>
+                <div class="q-range">${q.range}</div>
+              </div>
+            `).join('')}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function tileSources() {
+  return `
+    <div class="calib-tile">
+      <div class="calib-tile-header">
+        <div class="calib-tile-title">Source systems &amp; data scope</div>
+        <div class="calib-tile-suggested">5 primary · 3 optional</div>
+      </div>
+      <div class="calib-tile-body">
+        ${SOURCE_SYSTEMS.map(s => `
+          <div class="source-row ${s.primary ? '' : 'optional'}" data-toggle="source" data-id="${s.id}">
+            <div class="check ${state.calibration.sources[s.id] ? 'checked':''}"></div>
+            <div class="source-name">${s.name}</div>
+            <div class="source-table">${s.table}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function tileEvidence() {
+  return `
+    <div class="calib-tile">
+      <div class="calib-tile-header">
+        <div class="calib-tile-title">Documents &amp; evidence</div>
+        <div class="calib-tile-suggested">${state.calibration.evidence.length} attached</div>
+      </div>
+      <div class="upload-area ${state.calibration.evidence.length ? 'has-files':''}" data-action="add-evidence">
+        <div class="upload-icon">⤴</div>
+        <div>Drag &amp; drop files here, or click to attach</div>
+        <div class="upload-hint">Memos, position papers, prior audit deliverables</div>
+      </div>
+      <div class="link-input">
+        <input type="url" placeholder="Paste a link (audit committee minutes, board pre-read, shared drive)" id="evidence-link" />
+        <button class="btn" data-action="add-evidence-link">Add link</button>
+      </div>
+      ${state.calibration.evidence.length ? `
+        <div class="evidence-list">
+          ${state.calibration.evidence.map((e, i) => `
+            <div class="evidence-row">
+              <div class="evidence-icon">${e.type}</div>
+              <div>
+                <div class="evidence-name">${e.name}</div>
+                <div class="evidence-attr">added by ${e.addedBy}</div>
+              </div>
+              <div style="margin-left:auto;"></div>
+              <span class="evidence-remove" data-action="remove-evidence" data-i="${i}">✕</span>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+/* =================================================================
+   SCREEN 4 — REPORT
+================================================================= */
+function renderReport() {
+  const n = NOTIFICATIONS.find(x => x.id === state.activeNotificationId) || NOTIFICATIONS[0];
+  const tabs = [
+    { id: 'summary', label: 'Executive summary' },
+    { id: 'scope', label: 'Scope of the review' },
+    { id: 'approach', label: 'Approach' },
+    { id: 'analysis', label: 'Key analysis' },
+    { id: 'observations', label: 'Observations & actions' },
+    { id: 'conclusion', label: 'Overall conclusion' }
+  ];
+
+  return `
+    <div class="report-header">
+      <div class="report-header-top">
+        <div>
+          <div class="report-meta">
+            <span class="sev-tag ${n.severity}">${n.severity}</span>
+            <span>${n.source}</span>
+            <span class="version-tag">v1 · drafted by Aegis · 02:15 UTC</span>
+            ${state.signed ? '<span class="status-chip ok">✓ Signed off</span>' : ''}
+          </div>
+          <h1 class="report-title">${n.title}</h1>
+        </div>
+        <div class="action-menu">
+          <button class="action-btn" data-action="recalibrate">↺ Recalibrate analysis</button>
+          <button class="action-btn" data-action="share">Share with colleague</button>
+          <button class="action-btn" data-action="export">Export ▾</button>
+          <button class="action-btn" data-action="email-self">✉ Email me a copy</button>
+          <button class="action-btn" data-action="add-note">+ Add CAE note</button>
+          <button class="action-btn" data-action="escalate">Escalate to AC</button>
+          ${state.signed
+            ? '<button class="action-btn signed">✓ View signed report</button>'
+            : '<button class="action-btn primary" data-action="signoff">Conclude &amp; sign off</button>'}
+        </div>
+      </div>
+      <div class="tab-strip">
+        ${tabs.map((t, i) => `
+          <div class="tab ${state.reportTab === t.id ? 'active' : ''}" data-tab="${t.id}">
+            <span class="tab-num">0${i+1}</span>${t.label}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    <div class="report-body">
+      ${renderReportTab(state.reportTab)}
+    </div>
+    ${state.showExportMenu ? `
+      <div class="export-menu" id="export-menu">
+        <div class="export-menu-item" data-action="export-do" data-fmt="PDF">📄 PDF</div>
+        <div class="export-menu-item" data-action="export-do" data-fmt="PowerPoint">📊 PowerPoint</div>
+        <div class="export-menu-item" data-action="export-do" data-fmt="Word">📝 Word</div>
+      </div>
+    ` : ''}
+  `;
+}
+
+function renderReportTab(tab) {
+  switch (tab) {
+    case 'summary': return reportSummary();
+    case 'scope': return reportScope();
+    case 'approach': return reportApproach();
+    case 'analysis': return reportAnalysis();
+    case 'observations': return reportObservations();
+    case 'conclusion': return reportConclusion();
+  }
+}
+
+function reportSummary() {
+  return `
+    <div class="exec-grid">
+      <div>
+        <h2>Executive summary</h2>
+        <p>FASB and IASB jointly amended <strong>ASC 606 / IFRS 15</strong> to clarify performance-obligation identification within bundled offerings, and to tighten the constraint on variable consideration arising from channel rebates.</p>
+
+        <p>The change matters to Helix because roughly <strong>58% of FY27 revenue</strong> is recognised through bundled hardware-plus-software-plus-service offerings or through channel partners. Two prior internal audits — <strong>IA-2024-08</strong> and <strong>IA-2025-12</strong> — already flagged residual control weakness in this area, and the amendments materially raise the bar.</p>
+
+        <p>On a preliminary basis, the agent estimates <strong>$214M of FY27 Q1 recognised revenue</strong> across <strong>1,247 contracts</strong> in <strong>5 reporting entities</strong> would be measured differently under the amended standard, with the largest concentration in Enterprise Software and Channel &amp; Partner Sales.</p>
+
+        <p>The most consequential observation is that <strong>87 contracts in the Q1 sample show bundle-decomposition variance greater than 5%</strong> when the new performance-obligation guidance is applied — concentrated in deals where on-prem licence, SaaS subscription, and professional services are sold together.</p>
+
+        ${state.caeNote ? `<div class="recommendation-block"><div class="label">CAE note</div>${state.caeNote}</div>` : ''}
+
+        <div class="recommendation-block">
+          <div class="label">Recommended path forward</div>
+          Tighten the SSP allocation methodology (REV-002) and channel-rebate variable-consideration constraint (REV-003) before the FY27 Q2 close. Re-run this assessment quarterly through the FY27 transition. Coordinate with Controllership and the External Auditor on the transition-disclosure footnote.
+        </div>
+      </div>
+      <aside class="kpi-rail">
+        <div class="kpi-rail-title">At a glance</div>
+        <div class="kpi-tile">
+          <div class="kpi-label">Revenue impacted</div>
+          <div class="kpi-value">~$214M</div>
+          <div class="kpi-sub">FY27 Q1 — preliminary</div>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-label">Contracts in scope</div>
+          <div class="kpi-value">1,247</div>
+          <div class="kpi-sub">Oracle OKC · sampled 312</div>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-label">Entities in scope</div>
+          <div class="kpi-value">5</div>
+          <div class="kpi-sub">NA, EMEA, APAC</div>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-label">Controls requiring update</div>
+          <div class="kpi-value">4 of 6</div>
+          <div class="kpi-sub">REV-001, 002, 003, 005</div>
+        </div>
+      </aside>
+    </div>
+  `;
+}
+
+function reportScope() {
+  const inScopeEntities = Object.entries(state.calibration.entities).filter(([k,v]) => v).map(([k]) => ENTITIES.find(e => e.code === k)).filter(Boolean);
+  const outScopeEntities = ENTITIES.filter(e => !state.calibration.entities[e.code]);
+  const inScopeLOBs = LOBS.filter(l => state.calibration.lobs[l.id]);
+  const inScopePeriods = Object.entries(state.calibration.periods).filter(([k,v]) => v).map(([k]) => k);
+  const inSources = SOURCE_SYSTEMS.filter(s => state.calibration.sources[s.id]);
+  const outSources = SOURCE_SYSTEMS.filter(s => !state.calibration.sources[s.id]);
+
+  return `
+    <h2>Scope of the review</h2>
+    <p>The scope below reflects the calibration applied at the planning step on 03 May 2026. Items moved out of scope carry the rationale supplied at that point.</p>
+    <div class="scope-grid">
+      <div class="scope-col">
+        <h4 class="in">In scope</h4>
+        <div class="scope-section">
+          <div class="scope-section-title">Entities (${inScopeEntities.length})</div>
+          <ul class="scope-list">
+            ${inScopeEntities.map(e => `<li><span><strong>${e.code}</strong> · ${e.name}<small>${e.region}</small></span></li>`).join('')}
+          </ul>
+        </div>
+        <div class="scope-section">
+          <div class="scope-section-title">Lines of business (${inScopeLOBs.length})</div>
+          <ul class="scope-list">
+            ${inScopeLOBs.map(l => `<li><span>${l.name}<small>${l.desc}</small></span></li>`).join('')}
+          </ul>
+        </div>
+        <div class="scope-section">
+          <div class="scope-section-title">Period (${inScopePeriods.length} quarter${inScopePeriods.length===1?'':'s'})</div>
+          <ul class="scope-list">
+            ${inScopePeriods.map(p => `<li>${p}</li>`).join('')}
+          </ul>
+        </div>
+        <div class="scope-section">
+          <div class="scope-section-title">Source systems (${inSources.length})</div>
+          <ul class="scope-list">
+            ${inSources.map(s => `<li><span>${s.name}<small class="mono">${s.table}</small></span></li>`).join('')}
+          </ul>
+        </div>
+        <div class="scope-section">
+          <div class="scope-section-title">Documents reviewed (${state.calibration.evidence.length})</div>
+          <ul class="scope-list">
+            ${state.calibration.evidence.map(e => `<li><span>${e.name}<small>${e.addedBy}</small></span></li>`).join('') || '<li>(none)</li>'}
+          </ul>
+        </div>
+      </div>
+      <div class="scope-col">
+        <h4 class="out">Out of scope</h4>
+        <div class="scope-section">
+          <div class="scope-section-title">Entities</div>
+          <ul class="scope-list">
+            ${outScopeEntities.length
+              ? outScopeEntities.map(e => `<li><span><strong>${e.code}</strong> excluded — limited bundle activity (de minimis revenue contribution).</span></li>`).join('')
+              : '<li>(none)</li>'}
+            <li><span><strong>HCI-MX</strong> excluded — no bundled offerings sold</span></li>
+            <li><span><strong>HCI-BR</strong> excluded — local statutory reporting only, not consolidated to the change</span></li>
+          </ul>
+        </div>
+        <div class="scope-section">
+          <div class="scope-section-title">Lines of business</div>
+          <ul class="scope-list">
+            ${LOBS.filter(l => !state.calibration.lobs[l.id]).map(l => `<li><span>${l.name} excluded — no in-scope contracts.</span></li>`).join('') || '<li>(all LOBs included)</li>'}
+          </ul>
+        </div>
+        <div class="scope-section">
+          <div class="scope-section-title">Period</div>
+          <ul class="scope-list">
+            <li><span>FY24 Q1–Q4 excluded — pre-amendment baseline not required for first-pass impact estimate.</span></li>
+          </ul>
+        </div>
+        <div class="scope-section">
+          <div class="scope-section-title">Source systems</div>
+          <ul class="scope-list">
+            ${outSources.map(s => `<li><span>${s.name} — not directly impacted by performance-obligation re-evaluation.</span></li>`).join('') || '<li>(all primary systems queried)</li>'}
+          </ul>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function reportApproach() {
+  return `
+    <h2>Approach of the review</h2>
+    <p>The agent worked from the amended standard text (validated against the FASB and IFRS Foundation primary sources) outward into Helix's operating data. Five steps were taken, in order.</p>
+
+    <h3>1. Establishing the standard</h3>
+    <p>The agent retrieved the amended ASC 606 / IFRS 15 text directly from the FASB and IFRS Foundation websites and computed a content hash to confirm authenticity. Sections relevant to performance-obligation identification (§606-10-25) and variable consideration (§606-10-32) were extracted and structured into 14 testable assertions.</p>
+
+    <h3>2. Anchoring against prior audit work</h3>
+    <p>Internal audit reports IA-2024-08 (revenue recognition under ASC 606) and IA-2025-12 (channel rebate accounting) were retrieved from the audit corpus. The 11 issues raised across both reports were mapped to the 14 assertions, producing a relevance matrix that drove sampling priorities.</p>
+
+    <h3>3. Querying the data lake</h3>
+    <p>Five Oracle source systems were queried for the in-scope period (FY27 Q1). Performance obligations were pulled from <span class="mono">RMC_PERFORMANCE_OBLIGATIONS</span> (14,802 rows), filtered to the 5 in-scope entities (11,418 rows), joined to <span class="mono">OKC_K_HEADERS_ALL_B</span> (1,247 distinct contracts), and traced through <span class="mono">OE_ORDER_LINES_ALL</span>, <span class="mono">XLA_AE_HEADERS</span>, and <span class="mono">GL_JE_LINES</span> for revenue posting reconciliation.</p>
+
+    <h3>4. Sampling methodology</h3>
+    <p>From the 1,247 in-scope contracts, the agent drew a stratified sample of 312 — stratified by line of business and contract value, with intentional oversampling of contracts above $1M ARR and contracts containing more than two distinct performance obligations. The sample is intended to support a 95% confidence interval at ±3% relative precision on the headline impact estimate.</p>
+
+    <h3>5. Human calibration</h3>
+    <p>At the planning step, the Head of Internal Audit reviewed and adjusted the agent's first-pass scope across six calibration tiles (controls, entities, LOBs, period, source systems, evidence). All inclusions and exclusions made at that step are reflected in the Scope tab and have been carried through this analysis without further alteration.</p>
+
+    <h3>6. Validation</h3>
+    <p>Every quantitative figure in the report is traceable to its source records. The figure-to-source map runs to 1,418 records and is available behind any underlined number on the Key analysis tab. Two reasonableness checks were applied: (a) the FY27 Q1 baseline reconciles to the GL trial balance within $0.4M; (b) the variance pattern is directionally consistent with the FY26 Q4 baseline.</p>
+  `;
+}
+
+function reportAnalysis() {
+  return `
+    <h2>Key analysis</h2>
+
+    <div class="chart-card">
+      <div class="chart-card-title">Estimated revenue impact by line of business</div>
+      <div class="chart-card-sub">FY27 Q1 · absolute $ and % of LOB revenue · preliminary</div>
+      <div class="chart-host"><canvas id="chart-impact"></canvas></div>
+    </div>
+
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-card-title">Revenue mix by LOB</div>
+        <div class="chart-card-sub">FY27 Q1 · in-scope entities</div>
+        <div class="chart-host-sm"><canvas id="chart-mix"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-title">Recognised revenue at the bundle level — same SKUs</div>
+        <div class="chart-card-sub">FY27 Q1 vs FY26 Q4 vs FY25 Q4</div>
+        <div class="chart-host-sm"><canvas id="chart-compare"></canvas></div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-card-title">Top 10 contracts by revenue impact</div>
+      <div class="chart-card-sub">Click any underlined value to trace it to source records</div>
+      <table class="report-table">
+        <thead>
+          <tr>
+            <th>Contract ID</th><th>Customer</th><th>LOB</th><th>Entity</th>
+            <th class="number-cell">Recognised revenue</th>
+            <th class="number-cell">Variance under amended standard</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${TOP_CONTRACTS.map(c => `
+            <tr>
+              <td class="mono">${c.id}</td>
+              <td>${c.customer}</td>
+              <td>${c.lob}</td>
+              <td class="mono">${c.entity}</td>
+              <td class="number-cell traceable" data-action="trace" data-id="${c.id}-rev">$${c.revenue.toLocaleString()}</td>
+              <td class="number-cell traceable" data-action="trace" data-id="${c.id}-var">${c.variance > 0 ? '+' : ''}${(c.variance/c.revenue*100).toFixed(1)}%  ($${c.variance.toLocaleString()})</td>
+              <td><span class="status-chip ${c.status === 'Flagged' ? 'flagged' : c.status === 'Review' ? 'review' : 'ok'}">${c.status}</span></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+const TOP_CONTRACTS = [
+  { id: 'OKC-2026-04812', customer: 'Atlantic Federal Bank', lob: 'Enterprise Software', entity: 'HCI-US', revenue: 18420000, variance: -2210000, status: 'Flagged' },
+  { id: 'OKC-2026-04509', customer: 'Meridian Healthcare Group', lob: 'Enterprise Software', entity: 'HCI-US', revenue: 14180000, variance: -1620000, status: 'Flagged' },
+  { id: 'OKC-2026-04887', customer: 'Nordic Telecom AB', lob: 'Enterprise Hardware', entity: 'HCI-IE', revenue: 12880000, variance: -940000, status: 'Review' },
+  { id: 'OKC-2026-04601', customer: 'Pacific Distribution Co.', lob: 'Channel & Partner Sales', entity: 'HCI-SG', revenue: 11240000, variance: -1320000, status: 'Flagged' },
+  { id: 'OKC-2026-04733', customer: 'Daiwa Industrial KK', lob: 'Enterprise Hardware', entity: 'HCI-JP', revenue: 9810000, variance: -780000, status: 'Review' },
+  { id: 'OKC-2026-04902', customer: 'Frankfurt Logistics AG', lob: 'Enterprise Software', entity: 'HCI-DE', revenue: 8920000, variance: -1140000, status: 'Flagged' },
+  { id: 'OKC-2026-04718', customer: 'Rocky Mountain University', lob: 'Enterprise Hardware', entity: 'HCI-US', revenue: 7460000, variance: -290000, status: 'Review' },
+  { id: 'OKC-2026-04855', customer: 'Singapore Reseller Hub', lob: 'Channel & Partner Sales', entity: 'HCI-SG', revenue: 7120000, variance: -880000, status: 'Flagged' },
+  { id: 'OKC-2026-04421', customer: 'Lakeshore Manufacturing', lob: 'Consumer Software', entity: 'HCI-US', revenue: 5840000, variance: -110000, status: 'OK' },
+  { id: 'OKC-2026-04519', customer: 'Bavarian Energy GmbH', lob: 'Enterprise Software', entity: 'HCI-DE', revenue: 5210000, variance: -460000, status: 'Review' }
+];
+
+const OBSERVATIONS = [
+  {
+    severity: 'critical',
+    title: 'Bundle decomposition methodology under-identifies distinct performance obligations in 87 of 312 sampled contracts',
+    controls: ['REV-001', 'REV-002'],
+    change: 'Refresh the bundle decomposition logic in Oracle RMC to apply the amended ASC 606 §606-10-25-21 distinct-in-context tests at line level. Where on-prem licence, SaaS subscription, and professional services are sold together, default to separation unless explicit interdependence is documented.',
+    owner: 'Controllership + Revenue Operations',
+    suggested: 'Tighten REV-001 to require RMC re-evaluation for any deal containing more than two distinct categories AND >$1M ARR. Add a quarterly QA pass.'
+  },
+  {
+    severity: 'high',
+    title: 'Variable-consideration constraint for channel rebates is applied at quarter-end rather than at contract inception',
+    controls: ['REV-003'],
+    change: 'Move the variable-consideration estimation point earlier — to contract inception with monthly true-up — for channel rebates exceeding the materiality threshold. Adjust XLA configuration to support more frequent re-estimation entries.',
+    owner: 'Controllership · Channel Finance',
+    suggested: 'Tighten REV-003 sampling to monthly for channel partners with rebates >$500K rolling 12-month.'
+  },
+  {
+    severity: 'high',
+    title: 'Contract modification accounting treats certain renewals as new contracts when amended guidance favours combined treatment',
+    controls: ['REV-005'],
+    change: 'Update the OKC modification flagging logic to reflect the revised distinct-vs-combined assessment. Train the Revenue Operations team on the four-factor test in §606-10-25-12.',
+    owner: 'Revenue Operations',
+    suggested: 'Add a manual review gate in REV-005 for any modification on contracts >$5M ARR until the OKC update is in production.'
+  },
+  {
+    severity: 'medium',
+    title: 'Standalone selling price (SSP) library has not been refreshed for new bundled SKUs introduced in FY27 Q1',
+    controls: ['REV-002'],
+    change: 'Refresh the SSP estimation inputs (residual approach, market assessment) for the 38 new bundled SKUs and run the impact through RMC re-allocation. Document the methodology change in the SSP policy memo.',
+    owner: 'FP&A · Pricing · Controllership',
+    suggested: 'Tighten REV-002 sampling to monthly for bundles >$1M ARR.'
+  },
+  {
+    severity: 'medium',
+    title: 'Principal-vs-agent assessment for resold third-party software has not been re-tested under amended guidance',
+    controls: ['REV-006'],
+    change: 'Re-run the principal-vs-agent assessment for the resold third-party software SKUs catalogued in the price book. Where Helix does not control the goods/services before transfer, present revenue net of cost.',
+    owner: 'Controllership · Legal',
+    suggested: 'Add REV-006 to the next half-year SOX testing cycle.'
+  }
+];
+
+function reportObservations() {
+  return `
+    <h2>Key observations &amp; suggested actions</h2>
+    <p>Five observations are raised. Severities reflect the impact on financial-reporting accuracy and the proximity to the FY27 transition.</p>
+    ${OBSERVATIONS.map((o, i) => `
+      <div class="observation ${o.severity}">
+        <div class="obs-head">
+          <span class="obs-num">OBS-${String(i+1).padStart(2, '0')}</span>
+          <span class="obs-title">${o.title}</span>
+          <span class="sev-tag ${o.severity}">${o.severity}</span>
+        </div>
+        <div class="obs-grid">
+          <div class="obs-section">
+            <div class="obs-section-label">Implicated controls</div>
+            <div class="obs-section-body">${o.controls.map(c => `<span class="control-chip">${c}</span>`).join('')}</div>
+          </div>
+          <div class="obs-section">
+            <div class="obs-section-label">Owner</div>
+            <div class="obs-section-body">${o.owner}</div>
+          </div>
+        </div>
+        <div class="obs-section">
+          <div class="obs-section-label">What needs to change</div>
+          <div class="obs-section-body">${o.change}</div>
+        </div>
+        <div class="obs-section">
+          <div class="obs-section-label">Suggested control update</div>
+          <div class="obs-section-body">${o.suggested}</div>
+        </div>
+      </div>
+    `).join('')}
+  `;
+}
+
+function reportConclusion() {
+  return `
+    <h2>Overall conclusion</h2>
+    <div class="conclusion-card">
+      <p>The amended ASC 606 / IFRS 15 standard introduces a material — but manageable — change for Helix Computing. Of the six controls reviewed, four require update before the FY27 Q2 close. The headline preliminary impact estimate of ~$214M of recognised revenue is concentrated in <strong>Enterprise Software</strong> and <strong>Channel &amp; Partner Sales</strong>, and the underlying control changes are well-bounded.</p>
+
+      <p>The agent's confidence in the directional finding (under-identification of distinct performance obligations in bundled deals) is high; the precision of the dollar estimate is limited by the FY27 Q1 sampling window and will narrow as the FY27 Q2 and Q3 data become available.</p>
+
+      <p>Two areas of residual uncertainty are worth flagging to the Audit Committee. First, the principal-vs-agent re-test (OBS-05) is not yet complete and could move revenue presentation gross-to-net for a subset of resold third-party software. Second, the channel-rebate timing change (OBS-02) creates a one-time catch-up entry whose magnitude depends on the rebate accrual profile at the FY27 transition date.</p>
+
+      <div class="recommendation-block">
+        <div class="label">Recommended cadence</div>
+        Re-run this assessment quarterly through the FY27 transition (Q2, Q3, Q4) with the same 5 entities and the same control set, expanding sampling as the contract base evolves. After FY27 Q4, fold the cadence into the standing FY28 SOX programme.
+      </div>
+
+      <div class="signoff-block">
+        <div>
+          <div class="signoff-field">${state.signed ? 'Emma Sterling' : ''}</div>
+          <div class="signoff-label">Chief Audit Executive</div>
+        </div>
+        <div>
+          <div class="signoff-field">${state.signed ? '03 May 2026' : ''}</div>
+          <div class="signoff-label">Date</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* =================================================================
+   CHARTS
+================================================================= */
+let chartInstances = {};
+function drawCharts() {
+  // destroy old
+  Object.values(chartInstances).forEach(c => c && c.destroy && c.destroy());
+  chartInstances = {};
+
+  // Chart 1 — impact by LOB (horizontal bar)
+  const c1 = document.getElementById('chart-impact');
+  if (c1) {
+    chartInstances.impact = new Chart(c1, {
+      type: 'bar',
+      data: {
+        labels: ['Channel & Partner Sales', 'Enterprise Software', 'Enterprise Hardware', 'Consumer Software', 'Consumer Hardware'],
+        datasets: [{
+          label: 'Revenue impact ($M)',
+          data: [78, 64, 42, 21, 9],
+          backgroundColor: '#4338ca',
+          borderRadius: 4,
+          barThickness: 22
+        }, {
+          label: '% of LOB revenue',
+          data: [9.2, 7.4, 4.1, 2.8, 0.9],
+          backgroundColor: '#a5b4fc',
+          borderRadius: 4,
+          barThickness: 22,
+          xAxisID: 'x2'
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { title: { display: true, text: '$M' }, beginAtZero: true, grid: { color: '#eef0f3' } },
+          x2: { position: 'top', title: { display: true, text: '%' }, beginAtZero: true, grid: { display: false } },
+          y: { grid: { display: false } }
+        },
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } }
+        }
+      }
+    });
+  }
+
+  // Chart 2 — revenue mix (pie)
+  const c2 = document.getElementById('chart-mix');
+  if (c2) {
+    chartInstances.mix = new Chart(c2, {
+      type: 'pie',
+      data: {
+        labels: ['Enterprise Software', 'Channel & Partner Sales', 'Enterprise Hardware', 'Consumer Software', 'Consumer Hardware'],
+        datasets: [{
+          data: [34, 26, 20, 12, 8],
+          backgroundColor: ['#4338ca', '#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe'],
+          borderColor: '#fff',
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 10 } } }
+      }
+    });
+  }
+
+  // Chart 3 — comparison grouped bar
+  const c3 = document.getElementById('chart-compare');
+  if (c3) {
+    chartInstances.compare = new Chart(c3, {
+      type: 'bar',
+      data: {
+        labels: ['Bundle A', 'Bundle B', 'Bundle C', 'Bundle D', 'Bundle E'],
+        datasets: [
+          { label: 'FY25 Q4', data: [82, 64, 48, 36, 21], backgroundColor: '#c7d2fe' },
+          { label: 'FY26 Q4', data: [91, 71, 52, 39, 23], backgroundColor: '#818cf8' },
+          { label: 'FY27 Q1 (under amended std)', data: [76, 58, 41, 32, 18], backgroundColor: '#4338ca' }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          y: { title: { display: true, text: '$M' }, beginAtZero: true, grid: { color: '#eef0f3' } },
+          x: { grid: { display: false } }
+        },
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } }
+      }
+    });
+  }
+}
+
+/* =================================================================
+   STRETCH PAGES
+================================================================= */
+function renderHistory() {
+  const dismissed = [
+    { sev: 'low', source: 'OECD', date: '01 May 2026', title: 'Pillar Two implementation note', why: 'No new obligations beyond existing FY26 model' },
+    { sev: 'low', source: 'PCAOB', date: '30 Apr 2026', title: 'Inspection cycle methodology update', why: 'Affects auditor not company' },
+    { sev: 'low', source: 'FINRA', date: '30 Apr 2026', title: 'Broker conduct guidance', why: 'Helix not a regulated broker' },
+    { sev: 'low', source: 'EU Commission', date: '29 Apr 2026', title: 'CSRD Annex II minor revisions', why: 'Already absorbed into FY26 disclosure templates' },
+    { sev: 'low', source: 'IRS', date: '28 Apr 2026', title: 'Section 174 R&D capitalisation FAQ', why: 'No change to existing tax position' }
+  ];
+
+  const concluded = state.signed ? [{
+    sev: 'critical', source: 'FASB / IASB', date: '03 May 2026',
+    title: 'Change in Revenue Recognition standards (ASC 606 / IFRS 15)', why: 'Signed off by CAE'
+  }] : [];
+
+  return `
+    <div class="page">
+      <h1 class="home-title" style="margin-bottom:24px;">History</h1>
+
+      ${concluded.length ? `
+        <div class="briefing-tile" style="margin-bottom:24px;">
+          <div class="tile-header"><div class="tile-title">Concluded events</div></div>
+          ${concluded.map(d => `
+            <div class="history-row">
+              <div class="notif-rail ${d.sev}" style="height:24px;"></div>
+              <span class="sev-tag ${d.sev}">${d.sev}</span>
+              <div>
+                <div style="font-weight:500;">${d.title}</div>
+                <div style="font-size:12px;color:var(--text-3);margin-top:2px;">${d.source} · ${d.date}</div>
+              </div>
+              <div class="status-chip ok">✓ Signed off</div>
+              <button class="btn" data-action="open-signed">View report</button>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      <div class="briefing-tile">
+        <div class="tile-header">
+          <div class="tile-title">Dismissed by agent (last 24h)</div>
+          <div class="tile-meta">37 total · showing 5</div>
+        </div>
+        ${dismissed.map(d => `
+          <div class="history-row">
+            <div class="notif-rail ${d.sev}" style="height:24px;"></div>
+            <span class="sev-tag ${d.sev}">${d.sev}</span>
+            <div>
+              <div style="font-weight:500;">${d.title}</div>
+              <div style="font-size:12px;color:var(--text-3);margin-top:2px;">${d.source} · ${d.date}</div>
+            </div>
+            <div style="color:var(--text-3);font-size:12px;">${d.why}</div>
+            <a class="btn-link">Audit decision</a>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderPlanPage() {
+  return `
+    <div class="page">
+      <h1 class="home-title" style="margin-bottom:24px;">Plan</h1>
+      <div class="briefing-tile">
+        <div class="tile-header">
+          <div class="tile-title">FY27 audit plan · how recent events have folded in</div>
+          <div class="tile-meta">Q1 (Feb–Apr 2026)</div>
+        </div>
+        <div style="padding: 24px;">
+          ${[
+            { event: 'ASC 606 / IFRS 15 amendments', folded: 'Quarterly re-run added to revenue cycle audit; sampling intensified for bundled deals >$1M ARR.', sev: 'critical' },
+            { event: 'SEC cybersecurity disclosure timing', folded: '8-K disclosure timing testing added to IT general controls programme; quarterly cadence aligned with materiality re-assessment.', sev: 'high' },
+            { event: 'EU AI Act high-risk reclassification', folded: 'Two product modules added to the regulatory inventory tracker; annual review scheduled with Legal.', sev: 'medium' },
+            { event: 'PCAOB QC 1000 effective date', folded: 'Briefing scheduled for the next AC pre-read; transition disclosure plan to be prepared with External Auditor.', sev: 'medium' }
+          ].map(p => `
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);">
+              <span class="sev-tag ${p.sev}">${p.sev}</span>
+              <div>
+                <div style="font-weight:600;margin-bottom:4px;">${p.event}</div>
+                <div style="color:var(--text-2);font-size:13px;">${p.folded}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderSettings() {
+  return `
+    <div class="page">
+      <h1 class="home-title" style="margin-bottom:24px;">Settings</h1>
+      <div class="briefing-tile">
+        <div class="tile-header"><div class="tile-title">Agent monitoring</div></div>
+        <div style="padding:18px 24px;color:var(--text-2);">
+          <p>14 external feeds active · 4 primary regulators · 6 standard-setters · 4 industry channels.</p>
+          <p>Validation policy: every change must be verified against the issuing body's primary source before triage.</p>
+          <p>Last full sweep: 47 minutes ago. Next sweep: in 13 minutes.</p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* =================================================================
+   MODAL
+================================================================= */
+function renderModal() {
+  if (!state.modal) return '';
+  const m = state.modal;
+  if (m === 'signoff') return modalSignoff();
+  if (m === 'share') return modalShare();
+  if (m === 'why-controls') return modalWhy('controls');
+  if (m === 'why-entities') return modalWhy('entities');
+  if (m === 'why-lobs') return modalWhy('lobs');
+  if (m === 'trace') return modalTrace();
+  if (m === 'note') return modalNote();
+  return '';
+}
+
+function modalSignoff() {
+  return `
+    <div class="popover-backdrop" data-action="close-modal">
+      <div class="modal-card" data-stop="1">
+        <h2 class="modal-title">Conclude this review?</h2>
+        <div class="modal-body">
+          <p>By concluding, you confirm that you have read all six sections, reviewed the underlying figures, and accept the agent's analysis as the basis for action. The report will be locked, version-stamped, and added to the audit corpus.</p>
+          <div class="modal-checks">
+            <div class="check-row" data-toggle="signoff-check" data-id="reviewed">
+              <div class="check ${state.modalData?.reviewed ? 'checked' : ''}"></div>
+              <span>I have reviewed all facts and supporting evidence.</span>
+            </div>
+            <div class="check-row" data-toggle="signoff-check" data-id="ready">
+              <div class="check ${state.modalData?.ready ? 'checked' : ''}"></div>
+              <span>I am ready to conclude.</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn" data-action="close-modal">Cancel</button>
+          <button class="btn btn-primary" data-action="confirm-signoff" ${(!state.modalData?.reviewed || !state.modalData?.ready) ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Conclude &amp; sign off</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function modalShare() {
+  return `
+    <div class="popover-backdrop" data-action="close-modal">
+      <div class="modal-card" data-stop="1">
+        <h2 class="modal-title">Share this report</h2>
+        <p style="color:var(--text-2);font-size:14px;margin-bottom:8px;">The recipient will be added as a Reviewer with read + comment access. They cannot edit the report.</p>
+        <div class="share-list">
+          ${SHARE_TARGETS.map(s => `
+            <div class="share-row" data-action="do-share" data-name="${s.name}">
+              <div class="avatar">${s.initials}</div>
+              <div>
+                <div class="share-name">${s.name}</div>
+                <div class="share-role">${s.role}</div>
+              </div>
+              <button class="btn">Share</button>
+            </div>
+          `).join('')}
+        </div>
+        <div class="modal-actions"><button class="btn" data-action="close-modal">Done</button></div>
+      </div>
+    </div>
+  `;
+}
+
+function modalWhy(key) {
+  const blurbs = {
+    controls: {
+      title: 'Why these 6 controls?',
+      body: `<p>The agent ranked controls by relevance to the amended ASC 606 / IFRS 15 sections. The top 6 were selected based on three signals:</p>
+        <ul>
+          <li>Direct mapping to the amended standard sections (§606-10-25 Performance obligations; §606-10-32 Variable consideration).</li>
+          <li>Prior internal audit findings — IA-2024-08 raised 4 issues against REV-001 and REV-002; IA-2025-12 raised 3 issues against REV-003.</li>
+          <li>Materiality of the underlying transaction volumes in Oracle RMC for the FY27 Q1 in-scope entities.</li>
+        </ul>
+        <p>You can deselect any control or add new ones — the agent will re-prioritise the deep run accordingly.</p>`
+    },
+    entities: {
+      title: 'Why these 5 entities?',
+      body: `<p>The agent pre-screened the 11 active reporting entities and selected the 5 with material exposure to bundled hardware-plus-software-plus-service contracts in FY27 Q1.</p>
+        <ul>
+          <li><strong>HCI-US</strong>, <strong>HCI-IE</strong>, and <strong>HCI-SG</strong> are the three regional HQs — primary booking entities for global enterprise contracts.</li>
+          <li><strong>HCI-JP</strong> selected because of high channel rebate activity that interacts with the variable consideration amendment.</li>
+          <li><strong>HCI-DE</strong> selected because of significant enterprise software bundle volume.</li>
+          <li><strong>HCI-UK</strong> deselected by the agent because UK-specific bundle volume sits below the materiality threshold; you can opt it in if you wish to include it as an EMEA cross-check.</li>
+        </ul>`
+    },
+    lobs: {
+      title: 'Why all 5 LOBs?',
+      body: `<p>All five lines of business are included because each has at least one bundled offering that interacts with the amended performance-obligation guidance. The headline impact is concentrated in Enterprise Software and Channel &amp; Partner Sales, but Consumer Hardware and Consumer Software are kept in scope because they participate in product-bundling promotions during peak quarters.</p>`
+    }
+  };
+  const b = blurbs[key];
+  return `
+    <div class="popover-backdrop" data-action="close-modal">
+      <div class="modal-card" data-stop="1">
+        <h2 class="modal-title">${b.title}</h2>
+        <div class="modal-body">${b.body}</div>
+        <div class="modal-actions"><button class="btn" data-action="close-modal">Got it</button></div>
+      </div>
+    </div>
+  `;
+}
+
+function modalTrace() {
+  const id = state.modalData?.id || '';
+  const isVar = id.endsWith('-var');
+  return `
+    <div class="popover-backdrop" data-action="close-modal">
+      <div class="modal-card" data-stop="1">
+        <h2 class="modal-title">Trace · ${id.replace('-var','').replace('-rev','')}</h2>
+        <p style="color:var(--text-2);font-size:14px;">${isVar ? 'Variance under amended standard' : 'Recognised revenue'} · linked records</p>
+        <div class="trace-table">
+          <div><strong>Source:</strong> Oracle Revenue Management Cloud</div>
+          <div><strong>Table:</strong> RMC_PERFORMANCE_OBLIGATIONS</div>
+          <div><strong>Row range:</strong> 8,402 → 8,427 (26 rows)</div>
+          <div><strong>Joined to:</strong> OKC_K_HEADERS_ALL_B (1 contract), OE_ORDER_LINES_ALL (14 lines)</div>
+          <div><strong>Posting trace:</strong> XLA_AE_HEADERS → GL_JE_LINES (8 entries)</div>
+          <div><strong>Audit reference:</strong> IA-2024-08 finding #3</div>
+          <div><strong>Hash:</strong> a3f9c2e1...8b4d</div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn" data-action="close-modal">Close</button>
+          <button class="btn btn-primary">Open in data lake</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function modalNote() {
+  return `
+    <div class="popover-backdrop" data-action="close-modal">
+      <div class="modal-card" data-stop="1">
+        <h2 class="modal-title">Add CAE note</h2>
+        <p style="color:var(--text-2);font-size:14px;">This note will appear inline in the Executive summary tab of the final report.</p>
+        <textarea id="note-textarea" rows="6" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;resize:vertical;">${state.caeNote}</textarea>
+        <div class="modal-actions">
+          <button class="btn" data-action="close-modal">Cancel</button>
+          <button class="btn btn-primary" data-action="save-note">Save note</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderToast() {
+  if (!state.toast) return '';
+  return `<div class="toast">${state.toast}</div>`;
+}
+
+/* =================================================================
+   ICONS
+================================================================= */
+function iconHome() { return `<svg class="ico-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`; }
+function iconClock() { return `<svg class="ico-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`; }
+function iconCalendar() { return `<svg class="ico-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`; }
+function iconCog() { return `<svg class="ico-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`; }
+
+/* =================================================================
+   HANDLERS
+================================================================= */
+function attachHandlers() {
+  // navigation
+  document.querySelectorAll('[data-nav]').forEach(el => {
+    el.addEventListener('click', e => {
+      const target = el.dataset.nav;
+      if (target === 'home') state.screen = 'home';
+      else if (target === 'history') state.screen = 'history';
+      else if (target === 'planpage') state.screen = 'planpage';
+      else if (target === 'settings') state.screen = 'settings';
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-notif]').forEach(el => {
+    el.addEventListener('click', e => {
+      // ignore if click was on the action button (handled separately)
+      state.activeNotificationId = el.dataset.notif;
+      state.screen = 'analysis';
+      render();
+      window.scrollTo(0,0);
+    });
+  });
+
+  document.querySelectorAll('[data-action="discover"]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      state.activeNotificationId = el.dataset.id;
+      state.screen = 'analysis';
+      render();
+      window.scrollTo(0,0);
+    });
+  });
+
+  // mobile entry: "Plan before the Analysis" → screen 2 (preliminary analysis)
+  document.querySelectorAll('[data-action="mobile-plan"]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      state.activeNotificationId = state.notifications[0].id;
+      state.screen = 'analysis';
+      render();
+      window.scrollTo(0,0);
+    });
+  });
+
+  // mobile entry: "Start Analysis Now" → analysis animation → Draft Report Ready popup → report
+  document.querySelectorAll('[data-action="mobile-start"]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      state.activeNotificationId = state.notifications[0].id;
+      state.screen = 'interstitialB';
+      render();
+      setTimeout(runInterstitial, 60);
+    });
+  });
+
+  // role select
+  const roleSel = document.getElementById('role-select');
+  if (roleSel) roleSel.addEventListener('change', e => {
+    state.role = e.target.value;
+    render();
+  });
+
+  // analysis -> plan
+  document.querySelectorAll('[data-action="goto-plan"]').forEach(el => {
+    el.addEventListener('click', () => {
+      state.screen = 'interstitialA';
+      render();
+      setTimeout(runInterstitial, 60);
+    });
+  });
+  document.querySelectorAll('[data-action="back-analysis"]').forEach(el => {
+    el.addEventListener('click', () => { state.screen = 'analysis'; render(); window.scrollTo(0,0); });
+  });
+  document.querySelectorAll('[data-action="rescreen"]').forEach(el => {
+    el.addEventListener('click', () => { showToast('Re-screen requested · agent will refresh the analysis'); });
+  });
+
+  // calibration toggles
+  document.querySelectorAll('[data-toggle]').forEach(el => {
+    el.addEventListener('click', e => {
+      const t = el.dataset.toggle;
+      const id = el.dataset.id;
+      if (t === 'control') state.calibration.controls[id] = !state.calibration.controls[id];
+      else if (t === 'entity') state.calibration.entities[id] = !state.calibration.entities[id];
+      else if (t === 'lob') state.calibration.lobs[id] = !state.calibration.lobs[id];
+      else if (t === 'source') state.calibration.sources[id] = !state.calibration.sources[id];
+      else if (t === 'period') state.calibration.periods[id] = !state.calibration.periods[id];
+      else if (t === 'signoff-check') {
+        if (!state.modalData) state.modalData = {};
+        state.modalData[id] = !state.modalData[id];
+      }
+      render();
+    });
+  });
+
+  // why links
+  document.querySelectorAll('[data-action="why"]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      state.modal = 'why-' + el.dataset.key;
+      render();
+    });
+  });
+
+  // run impact
+  document.querySelectorAll('[data-action="run-impact"]').forEach(el => {
+    el.addEventListener('click', () => {
+      state.screen = 'interstitialB';
+      render();
+      setTimeout(runInterstitial, 60);
+    });
+  });
+
+  document.querySelectorAll('[data-action="save-template"]').forEach(el => {
+    el.addEventListener('click', () => showToast('Calibration saved as a template'));
+  });
+
+  document.querySelectorAll('[data-action="add-control"]').forEach(el => el.addEventListener('click', () => showToast('Add-control dialog (prototype)')));
+  document.querySelectorAll('[data-action="add-entity"]').forEach(el => el.addEventListener('click', () => showToast('Add-entity dialog (prototype)')));
+  document.querySelectorAll('[data-action="add-lob"]').forEach(el => el.addEventListener('click', () => showToast('Add-LOB dialog (prototype)')));
+  document.querySelectorAll('[data-action="add-evidence"]').forEach(el => el.addEventListener('click', () => {
+    state.calibration.evidence.push({ name: 'Position-paper-' + (state.calibration.evidence.length+1) + '.docx', type: 'DOC', addedBy: state.role });
+    showToast('Document attached');
+    render();
+  }));
+  document.querySelectorAll('[data-action="add-evidence-link"]').forEach(el => el.addEventListener('click', () => {
+    const inp = document.getElementById('evidence-link');
+    const v = inp && inp.value.trim();
+    if (v) {
+      state.calibration.evidence.push({ name: v, type: 'URL', addedBy: state.role });
+      showToast('Link attached');
+      render();
+    }
+  }));
+  document.querySelectorAll('[data-action="remove-evidence"]').forEach(el => el.addEventListener('click', e => {
+    e.stopPropagation();
+    state.calibration.evidence.splice(parseInt(el.dataset.i), 1);
+    render();
+  }));
+
+  // skip
+  document.querySelectorAll('[data-action="skip-interstitial"]').forEach(el => el.addEventListener('click', skipInterstitial));
+
+  // report tabs
+  document.querySelectorAll('[data-tab]').forEach(el => el.addEventListener('click', () => {
+    state.reportTab = el.dataset.tab;
+    state.showExportMenu = false;
+    render();
+  }));
+
+  // report actions
+  document.querySelectorAll('[data-action="recalibrate"]').forEach(el => el.addEventListener('click', () => {
+    state.screen = 'plan'; render(); window.scrollTo(0,0);
+    showToast('Calibration restored — re-run impact analysis when ready');
+  }));
+  document.querySelectorAll('[data-action="share"]').forEach(el => el.addEventListener('click', () => { state.modal = 'share'; render(); }));
+  document.querySelectorAll('[data-action="export"]').forEach(el => el.addEventListener('click', () => {
+    state.showExportMenu = !state.showExportMenu; render();
+  }));
+  document.querySelectorAll('[data-action="export-do"]').forEach(el => el.addEventListener('click', () => {
+    state.showExportMenu = false; showToast('Exporting as ' + el.dataset.fmt + ' · v1 · ' + new Date().toLocaleString());
+    render();
+  }));
+  document.querySelectorAll('[data-action="email-self"]').forEach(el => el.addEventListener('click', () => {
+    showToast('Sent to emma@helix.com — PDF, v1');
+  }));
+  document.querySelectorAll('[data-action="add-note"]').forEach(el => el.addEventListener('click', () => {
+    state.modal = 'note'; render();
+  }));
+  document.querySelectorAll('[data-action="save-note"]').forEach(el => el.addEventListener('click', () => {
+    const ta = document.getElementById('note-textarea');
+    state.caeNote = ta ? ta.value : '';
+    state.modal = null;
+    render();
+    showToast('CAE note saved');
+  }));
+  document.querySelectorAll('[data-action="escalate"]').forEach(el => el.addEventListener('click', () => {
+    showToast('Staged for the next AC pre-read');
+  }));
+  document.querySelectorAll('[data-action="signoff"]').forEach(el => el.addEventListener('click', () => {
+    state.modal = 'signoff';
+    state.modalData = { reviewed: false, ready: false };
+    render();
+  }));
+  document.querySelectorAll('[data-action="confirm-signoff"]').forEach(el => el.addEventListener('click', () => {
+    if (!state.modalData?.reviewed || !state.modalData?.ready) return;
+    state.signed = true;
+    state.modal = null;
+    state.modalData = null;
+    render();
+    showToast('Report signed off · locked at v1.0 · added to corpus');
+  }));
+  document.querySelectorAll('[data-action="close-modal"]').forEach(el => el.addEventListener('click', e => {
+    if (e.target.dataset.stop) return;
+    state.modal = null;
+    state.modalData = null;
+    render();
+  }));
+  document.querySelectorAll('[data-stop]').forEach(el => el.addEventListener('click', e => e.stopPropagation()));
+  document.querySelectorAll('[data-action="do-share"]').forEach(el => el.addEventListener('click', () => {
+    state.modal = null;
+    showToast('Shared with ' + el.dataset.name + ' as Reviewer');
+    render();
+  }));
+
+  // trace
+  document.querySelectorAll('[data-action="trace"]').forEach(el => el.addEventListener('click', () => {
+    state.modal = 'trace';
+    state.modalData = { id: el.dataset.id };
+    render();
+  }));
+
+  // history
+  document.querySelectorAll('[data-action="open-signed"]').forEach(el => el.addEventListener('click', () => {
+    state.activeNotificationId = 'n1';
+    state.screen = 'report';
+    state.reportTab = 'summary';
+    render();
+  }));
+}
+
+function showToast(msg) {
+  state.toast = msg;
+  render();
+  setTimeout(() => { state.toast = null; render(); }, 2400);
+}
+
+/* =================================================================
+   GO
+================================================================= */
+render();
+</script>
+</body>
+</html>
